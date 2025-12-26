@@ -102,15 +102,20 @@ export class ConversationEngine {
         return;
       }
 
-      // Rate limiting checks at execution time
+      // Check responder limit BEFORE adding to set
       if (this.respondersThisMessage.size >= this.maxRespondersPerMessage) {
         this.pendingModels.delete(modelId);
         return;
       }
-      if (this.consecutiveAIResponses >= this.maxConsecutiveAI) {
+
+      // Check consecutive limit (but @mentions bypass - priority 100)
+      if (priority < 100 && this.consecutiveAIResponses >= this.maxConsecutiveAI) {
         this.pendingModels.delete(modelId);
         return;
       }
+
+      // COMMIT to responding - add to set NOW, not on complete
+      this.respondersThisMessage.add(modelId);
 
       if (this.currentlyResponding < this.maxConcurrent) {
         this.triggerResponse(modelId);
@@ -133,10 +138,21 @@ export class ConversationEngine {
     this.currentlyResponding--;
     this.pendingModels.delete(modelId);
     this.consecutiveAIResponses++;
-    this.respondersThisMessage.add(modelId);
 
     if (this.responseQueue.length > 0) {
       const next = this.responseQueue.shift()!;
+
+      // Re-check limits before triggering queued response
+      if (this.respondersThisMessage.size >= this.maxRespondersPerMessage) {
+        this.pendingModels.delete(next.modelId);
+        return;
+      }
+      if (next.priority < 100 && this.consecutiveAIResponses >= this.maxConsecutiveAI) {
+        this.pendingModels.delete(next.modelId);
+        return;
+      }
+
+      this.respondersThisMessage.add(next.modelId);
       this.triggerResponse(next.modelId);
     }
   }
