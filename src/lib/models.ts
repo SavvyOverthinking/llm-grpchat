@@ -5,6 +5,7 @@ const modelColors = [
   "#22c55e", // green
   "#f97316", // orange
   "#3b82f6", // blue
+  "#a855f7", // purple
 ];
 
 export const availableModels: Model[] = [
@@ -27,7 +28,7 @@ export const availableModels: Model[] = [
   {
     id: "anthropic/claude-haiku-4.5",
     name: "Claude Haiku 4.5",
-    shortName: "Claude",
+    shortName: "Haiku",
     provider: "anthropic",
     color: modelColors[2],
     isActive: false,
@@ -38,6 +39,14 @@ export const availableModels: Model[] = [
     shortName: "Grok",
     provider: "x-ai",
     color: modelColors[3],
+    isActive: false,
+  },
+  {
+    id: "anthropic/claude-opus-4-5-20251101",
+    name: "Claude Opus 4.5",
+    shortName: "Opus",
+    provider: "anthropic",
+    color: modelColors[4],
     isActive: false,
   },
 ];

@@ -12,6 +12,7 @@ import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import { ModelSelector } from "./ModelSelector";
 import { ActiveModels } from "./ActiveModels";
+import { PromptModePanel } from "./PromptModePanel";
 import { Message } from "@/types/chat";
 
 export function ChatContainer() {
@@ -24,6 +25,8 @@ export function ChatContainer() {
   const contextWindowSize = useChatStore((state) => state.contextWindowSize);
   const clearChat = useChatStore((state) => state.clearChat);
   const messages = useChatStore((state) => state.messages);
+  const promptModes = useChatStore((state) => state.promptModes);
+  const modelConfigs = useChatStore((state) => state.modelConfigs);
 
   const isGenerating = typingModels.length > 0 || messages.some((m) => m.isStreaming);
 
@@ -54,7 +57,13 @@ export function ChatContainer() {
       setTyping(modelId, model.name, true);
 
       // Build messages for API
-      const systemPrompt = buildSystemPrompt(model, state.activeModels, state.messages);
+      const systemPrompt = buildSystemPrompt(
+        model,
+        state.activeModels,
+        state.messages,
+        state.promptModes,
+        state.modelConfigs
+      );
       const contextMessages = buildContextWindow(
         state.messages,
         contextWindowSize,
@@ -179,8 +188,9 @@ export function ChatContainer() {
           <ActiveModels />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <ModelSelector />
+          <PromptModePanel />
         </div>
 
         <div className="p-4 border-t border-border">

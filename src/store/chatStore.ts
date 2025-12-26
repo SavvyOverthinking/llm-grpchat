@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { v4 as uuidv4 } from "uuid";
 import { ChatState, Model, Message } from "@/types/chat";
 import { availableModels as defaultModels } from "@/lib/models";
+import { defaultPromptModes } from "@/lib/promptModes";
+import { defaultModelConfigs } from "@/lib/modelConfigs";
 
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
@@ -9,6 +11,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   availableModels: defaultModels,
   typingModels: [],
   contextWindowSize: 20,
+  promptModes: defaultPromptModes,
+  modelConfigs: defaultModelConfigs,
 
   addMessage: (message) => {
     const id = uuidv4();
@@ -62,4 +66,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
   clearChat: () => set({ messages: [], typingModels: [] }),
 
   initializeModels: (models) => set({ availableModels: models }),
+
+  togglePromptMode: (modeId) =>
+    set((state) => ({
+      promptModes: state.promptModes.map((m) =>
+        m.id === modeId ? { ...m, enabled: !m.enabled } : m
+      ),
+    })),
+
+  setModelRole: (modelId, roleId) =>
+    set((state) => ({
+      modelConfigs: {
+        ...state.modelConfigs,
+        [modelId]: {
+          ...(state.modelConfigs[modelId] || { modelId, personality: '' }),
+          customRole: roleId,
+        },
+      },
+    })),
 }));

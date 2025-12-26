@@ -22,12 +22,28 @@ export interface TypingState {
   modelName: string;
 }
 
+export interface PromptMode {
+  id: string;
+  label: string;
+  description: string;
+  promptAddition: string;
+  enabled: boolean;
+}
+
+export interface ModelConfig {
+  modelId: string;
+  personality: string;
+  customRole: string | null;
+}
+
 export interface ChatState {
   messages: Message[];
   activeModels: Model[];
   availableModels: Model[];
   typingModels: TypingState[];
   contextWindowSize: number;
+  promptModes: PromptMode[];
+  modelConfigs: Record<string, ModelConfig>;
 
   addMessage: (message: Omit<Message, "id" | "timestamp">) => string;
   updateMessage: (id: string, content: string) => void;
@@ -37,4 +53,6 @@ export interface ChatState {
   setContextWindowSize: (size: number) => void;
   clearChat: () => void;
   initializeModels: (models: Model[]) => void;
+  togglePromptMode: (modeId: string) => void;
+  setModelRole: (modelId: string, roleId: string | null) => void;
 }

@@ -1,4 +1,5 @@
-import { Model, Message } from "@/types/chat";
+import { Model, Message, PromptMode, ModelConfig } from "@/types/chat";
+import { availableRoles } from "@/lib/modelConfigs";
 
 interface ResponseDecision {
   shouldRespond: boolean;
@@ -36,9 +37,13 @@ export class ConversationEngine {
     let priority = 0;
     let shouldRespond = false;
 
+    // Check for @here or @all global mentions - triggers ALL models
+    const globalMentionPattern = /@(here|all)\b/i;
+    const isGlobalMention = globalMentionPattern.test(latestMessage.content);
+
     // Highest priority: @mentioned - BYPASSES COOLDOWN
     const mentionPattern = new RegExp(`@${model.shortName.toLowerCase()}\\b`, "i");
-    const isMentioned = mentionPattern.test(latestMessage.content);
+    const isMentioned = mentionPattern.test(latestMessage.content) || isGlobalMention;
 
     if (isMentioned) {
       shouldRespond = true;
@@ -59,10 +64,11 @@ export class ConversationEngine {
       }
     }
 
-    // Detect if recent messages contain summary/conclusion language - reduce post-summary chatter
-    const recentMessages = messages.slice(-5);
+    // Detect if recent ASSISTANT messages contain summary/conclusion language - reduce post-summary chatter
+    // Only check AI responses, not user posts (user might paste text containing "conclusion" etc.)
+    const recentAssistantMessages = messages.slice(-5).filter(m => m.role === "assistant");
     const summaryKeywords = ['final report', 'summary:', 'consensus:', 'conclusion:', 'we are done', 'analysis stands'];
-    const hasSummary = recentMessages.some(m =>
+    const hasSummary = recentAssistantMessages.some(m =>
       summaryKeywords.some(kw => m.content.toLowerCase().includes(kw))
     );
 
@@ -220,7 +226,9 @@ export class ConversationEngine {
 export function buildSystemPrompt(
   model: Model,
   activeModels: Model[],
-  messages: Message[] = []
+  messages: Message[] = [],
+  promptModes: PromptMode[] = [],
+  modelConfigs: Record<string, ModelConfig> = {}
 ): string {
   const otherModels = activeModels
     .filter((m) => m.id !== model.id)
@@ -240,7 +248,24 @@ export function buildSystemPrompt(
     msgsSinceUser++;
   }
 
-  return `You are ${model.name}, participating in a group discussion with a human and other AI models.
+  // Build enabled prompt modes text
+  const enabledModes = promptModes.filter(m => m.enabled);
+  const modesText = enabledModes.length > 0
+    ? '\n\n' + enabledModes.map(m => m.promptAddition).join('\n\n')
+    : '';
+
+  // Build model-specific personality text
+  const modelConfig = modelConfigs[model.id];
+  const personalityText = modelConfig?.personality
+    ? `\n\nYOUR PERSONALITY:\n${modelConfig.personality}`
+    : '';
+
+  // Build custom role text if assigned
+  const roleText = modelConfig?.customRole
+    ? `\n\nASSIGNED ROLE:\n${availableRoles.find(r => r.id === modelConfig.customRole)?.prompt || ''}`
+    : '';
+
+  const basePrompt = `You are ${model.name}, participating in a group discussion with a human and other AI models.
 
 ${othersText}
 
@@ -309,6 +334,8 @@ Response rules:
 - If @${model.shortName} is mentioned, you MUST respond
 - Don't repeat points already made
 - If ${msgsSinceUser} >= 10 and you weren't mentioned, let the human speak`;
+
+  return basePrompt + modesText + personalityText + roleText;
 }
 
 export function buildContextWindow(
