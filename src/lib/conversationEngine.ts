@@ -13,6 +13,10 @@ export class ConversationEngine {
   private maxConcurrent = 1;
   private currentlyResponding = 0;
   private onTriggerResponse?: (modelId: string) => void;
+  private consecutiveAIResponses: number = 0;
+  private respondersThisMessage: Set<string> = new Set();
+  private maxRespondersPerMessage: number = 2;
+  private maxConsecutiveAI: number = 3;
 
   setResponseHandler(handler: (modelId: string) => void) {
     this.onTriggerResponse = handler;
@@ -41,6 +45,22 @@ export class ConversationEngine {
       priority = 100;
     }
 
+    // Don't respond if we already responded to this exact message
+    const lastUserOrMentionMsg = messages.filter(m =>
+      m.role === "user" ||
+      (m.content && new RegExp(`@${model.shortName}\\b`, "i").test(m.content))
+    ).pop();
+
+    if (lastUserOrMentionMsg) {
+      const myResponseAfter = messages.some(m =>
+        m.modelId === model.id &&
+        m.timestamp > lastUserOrMentionMsg.timestamp
+      );
+      if (myResponseAfter && !isMentioned) {
+        return { shouldRespond: false, delay: 0, priority: 0 };
+      }
+    }
+
     // Check cooldown (10 seconds) - but @mentions bypass this
     const lastResponse = this.cooldowns.get(model.id) || 0;
     const isOnCooldown = Date.now() - lastResponse < 10000;
@@ -59,12 +79,6 @@ export class ConversationEngine {
     if (!shouldRespond && latestMessage.content.includes("?")) {
       shouldRespond = true;
       priority = 60;
-    }
-
-    // Low priority: Random chance (15%)
-    if (!shouldRespond && Math.random() < 0.15) {
-      shouldRespond = true;
-      priority = 20;
     }
 
     // Calculate delay based on message length (simulate reading)
@@ -88,6 +102,16 @@ export class ConversationEngine {
         return;
       }
 
+      // Rate limiting checks at execution time
+      if (this.respondersThisMessage.size >= this.maxRespondersPerMessage) {
+        this.pendingModels.delete(modelId);
+        return;
+      }
+      if (this.consecutiveAIResponses >= this.maxConsecutiveAI) {
+        this.pendingModels.delete(modelId);
+        return;
+      }
+
       if (this.currentlyResponding < this.maxConcurrent) {
         this.triggerResponse(modelId);
       } else {
@@ -108,6 +132,8 @@ export class ConversationEngine {
     this.cooldowns.set(modelId, Date.now());
     this.currentlyResponding--;
     this.pendingModels.delete(modelId);
+    this.consecutiveAIResponses++;
+    this.respondersThisMessage.add(modelId);
 
     if (this.responseQueue.length > 0) {
       const next = this.responseQueue.shift()!;
@@ -130,10 +156,21 @@ export class ConversationEngine {
     this.responseQueue = [];
     this.pendingModels.clear();
     this.currentlyResponding = 0;
+    this.consecutiveAIResponses = 0;
+    this.respondersThisMessage.clear();
+  }
+
+  onUserMessage(): void {
+    this.consecutiveAIResponses = 0;
+    this.respondersThisMessage.clear();
   }
 }
 
-export function buildSystemPrompt(model: Model, activeModels: Model[]): string {
+export function buildSystemPrompt(
+  model: Model,
+  activeModels: Model[],
+  messages: Message[] = []
+): string {
   const otherModels = activeModels
     .filter((m) => m.id !== model.id)
     .map((m) => m.shortName);
@@ -143,18 +180,40 @@ export function buildSystemPrompt(model: Model, activeModels: Model[]): string {
       ? `The other AI participants are: ${otherModels.join(", ")}.`
       : "You are the only AI in this chat.";
 
+  // Determine last speaker
+  const lastAssistantMsg = [...messages].reverse().find(m => m.role === "assistant");
+  const lastSpeaker = lastAssistantMsg?.modelName || "None yet";
+
+  // Count messages since last user input
+  let msgsSinceUser = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") break;
+    msgsSinceUser++;
+  }
+
   return `You are ${model.name}, participating in a group chat with a human user${otherModels.length > 0 ? " and other AI models" : ""}.
 
 ${othersText}
 
-Rules:
+CRITICAL OUTPUT RULES:
+- NEVER start your response with brackets, labels, or names like "[${model.shortName}]:" or "[${model.name}]:"
+- The chat system automatically labels your messages - you just write your words
+- NEVER write other models' names with brackets like "[Kimi]:" or "[Claude]:" in your response
+- Keep all reasoning and thinking internal - only output your final response
+- If you catch yourself writing meta-commentary about what you're about to say, stop and just say it
+
+Current conversation state:
+- Last speaker: ${lastSpeaker}
+- Messages since last user input: ${msgsSinceUser}
+
+Behavioral rules:
 - Be conversational and natural, like a group chat
 - Keep responses concise (2-4 sentences usually, unless asked for more detail)
-- You can address others using @mentions (e.g., @${otherModels[0] || "User"})
+- Use @mentions to address others (e.g., @${otherModels[0] || "User"})
 - Don't repeat what others have said
-- Feel free to disagree, build on others' points, or ask follow-up questions
 - If directly addressed with @${model.shortName}, you must respond
-- Be yourself - show personality and engage naturally`;
+- If ${msgsSinceUser} >= 3 and you weren't directly mentioned, let the human speak next
+- Show personality and engage naturally`;
 }
 
 export function buildContextWindow(

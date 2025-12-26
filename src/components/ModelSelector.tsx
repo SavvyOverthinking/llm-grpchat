@@ -30,8 +30,8 @@ export function ModelSelector() {
               }`}
               style={{
                 backgroundColor: model.color,
-                ringColor: model.color,
-              }}
+                "--tw-ring-color": model.color,
+              } as React.CSSProperties}
             />
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium truncate">{model.name}</div>

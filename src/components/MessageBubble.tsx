@@ -24,28 +24,29 @@ export function MessageBubble({ message }: Props) {
 
     const mentionRegex = /@(\w+)/g;
     let lastIndex = 0;
-    let match;
+    let match: RegExpExecArray | null;
 
     while ((match = mentionRegex.exec(message.content)) !== null) {
+      const currentMatch = match;
       // Add text before the mention
-      if (match.index > lastIndex) {
-        parts.push(message.content.slice(lastIndex, match.index));
+      if (currentMatch.index > lastIndex) {
+        parts.push(message.content.slice(lastIndex, currentMatch.index));
       }
 
       // Check if this mention corresponds to a model
       const mentionedModel = allModels.find(
-        (m) => m.shortName.toLowerCase() === match[1].toLowerCase()
+        (m) => m.shortName.toLowerCase() === currentMatch[1].toLowerCase()
       );
 
       if (mentionedModel) {
-        parts.push({ text: match[0], color: mentionedModel.color });
-      } else if (match[1].toLowerCase() === "user") {
-        parts.push({ text: match[0], color: "#dc2626" });
+        parts.push({ text: currentMatch[0], color: mentionedModel.color });
+      } else if (currentMatch[1].toLowerCase() === "user") {
+        parts.push({ text: currentMatch[0], color: "#dc2626" });
       } else {
-        parts.push(match[0]);
+        parts.push(currentMatch[0]);
       }
 
-      lastIndex = match.index + match[0].length;
+      lastIndex = currentMatch.index + currentMatch[0].length;
     }
 
     // Add remaining text

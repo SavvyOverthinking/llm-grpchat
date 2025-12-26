@@ -54,7 +54,7 @@ export function ChatContainer() {
       setTyping(modelId, model.name, true);
 
       // Build messages for API
-      const systemPrompt = buildSystemPrompt(model, state.activeModels);
+      const systemPrompt = buildSystemPrompt(model, state.activeModels, state.messages);
       const contextMessages = buildContextWindow(
         state.messages,
         contextWindowSize,
@@ -139,6 +139,8 @@ export function ChatContainer() {
       if (activeModels.length === 0) {
         return;
       }
+
+      conversationEngine.onUserMessage();
 
       const messageId = addMessage({
         role: "user",
