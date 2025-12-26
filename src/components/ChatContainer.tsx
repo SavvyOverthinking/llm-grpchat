@@ -86,6 +86,7 @@ export function ChatContainer() {
         onComplete: () => {
           completeMessage(messageId);
           conversationEngine.completeResponse(modelId);
+          console.log('Engine state after response:', conversationEngine.getDebugState());
 
           // After response, check if other models should respond
           const latestState = useChatStore.getState();

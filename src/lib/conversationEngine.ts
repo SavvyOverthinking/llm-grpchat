@@ -16,7 +16,7 @@ export class ConversationEngine {
   private consecutiveAIResponses: number = 0;
   private respondersThisMessage: Set<string> = new Set();
   private maxRespondersPerMessage: number = 2;
-  private maxConsecutiveAI: number = 12;
+  private maxConsecutiveAI: number = 10;
 
   setResponseHandler(handler: (modelId: string) => void) {
     this.onTriggerResponse = handler;
@@ -45,19 +45,17 @@ export class ConversationEngine {
       priority = 100;
     }
 
-    // Don't respond if we already responded to this exact message
-    const lastUserOrMentionMsg = messages.filter(m =>
-      m.role === "user" ||
-      (m.content && new RegExp(`@${model.shortName}\\b`, "i").test(m.content))
-    ).pop();
-
-    if (lastUserOrMentionMsg) {
-      const myResponseAfter = messages.some(m =>
-        m.modelId === model.id &&
-        m.timestamp > lastUserOrMentionMsg.timestamp
-      );
-      if (myResponseAfter && !isMentioned) {
-        return { shouldRespond: false, delay: 0, priority: 0 };
+    // Don't respond if we already responded since the last user message (unless currently @mentioned)
+    if (!isMentioned) {
+      const lastUserMsg = [...messages].reverse().find(m => m.role === "user");
+      if (lastUserMsg) {
+        const myResponseAfter = messages.some(m =>
+          m.modelId === model.id &&
+          m.timestamp > lastUserMsg.timestamp
+        );
+        if (myResponseAfter) {
+          return { shouldRespond: false, delay: 0, priority: 0 };
+        }
       }
     }
 
@@ -102,16 +100,16 @@ export class ConversationEngine {
         return;
       }
 
-      // Check responder limit BEFORE adding to set
-      if (this.respondersThisMessage.size >= this.maxRespondersPerMessage) {
-        this.pendingModels.delete(modelId);
-        return;
-      }
-
-      // Check consecutive limit (but @mentions bypass - priority 100)
-      if (priority < 100 && this.consecutiveAIResponses >= this.maxConsecutiveAI) {
-        this.pendingModels.delete(modelId);
-        return;
+      // Priority 100 = direct @mention - bypass ALL limits
+      if (priority < 100) {
+        if (this.respondersThisMessage.size >= this.maxRespondersPerMessage) {
+          this.pendingModels.delete(modelId);
+          return;
+        }
+        if (this.consecutiveAIResponses >= this.maxConsecutiveAI) {
+          this.pendingModels.delete(modelId);
+          return;
+        }
       }
 
       // COMMIT to responding - add to set NOW, not on complete
@@ -143,13 +141,16 @@ export class ConversationEngine {
       const next = this.responseQueue.shift()!;
 
       // Re-check limits before triggering queued response
-      if (this.respondersThisMessage.size >= this.maxRespondersPerMessage) {
-        this.pendingModels.delete(next.modelId);
-        return;
-      }
-      if (next.priority < 100 && this.consecutiveAIResponses >= this.maxConsecutiveAI) {
-        this.pendingModels.delete(next.modelId);
-        return;
+      // Priority 100 = direct @mention - bypass ALL limits
+      if (next.priority < 100) {
+        if (this.respondersThisMessage.size >= this.maxRespondersPerMessage) {
+          this.pendingModels.delete(next.modelId);
+          return;
+        }
+        if (this.consecutiveAIResponses >= this.maxConsecutiveAI) {
+          this.pendingModels.delete(next.modelId);
+          return;
+        }
       }
 
       this.respondersThisMessage.add(next.modelId);
@@ -192,6 +193,16 @@ export class ConversationEngine {
   setMaxRespondersPerMessage(max: number): void {
     this.maxRespondersPerMessage = max;
   }
+
+  getDebugState(): object {
+    return {
+      consecutiveAIResponses: this.consecutiveAIResponses,
+      respondersThisMessage: Array.from(this.respondersThisMessage),
+      pendingModels: Array.from(this.pendingModels),
+      queueLength: this.responseQueue.length,
+      currentlyResponding: this.currentlyResponding
+    };
+  }
 }
 
 export function buildSystemPrompt(
@@ -208,40 +219,52 @@ export function buildSystemPrompt(
       ? `The other AI participants are: ${otherModels.join(", ")}.`
       : "You are the only AI in this chat.";
 
-  // Determine last speaker
   const lastAssistantMsg = [...messages].reverse().find(m => m.role === "assistant");
   const lastSpeaker = lastAssistantMsg?.modelName || "None yet";
 
-  // Count messages since last user input
   let msgsSinceUser = 0;
   for (let i = messages.length - 1; i >= 0; i--) {
     if (messages[i].role === "user") break;
     msgsSinceUser++;
   }
 
-  return `You are ${model.name}, participating in a group chat with a human user${otherModels.length > 0 ? " and other AI models" : ""}.
+  return `You are ${model.name}, participating in a group discussion with a human and other AI models.
 
 ${othersText}
 
 CRITICAL OUTPUT RULES:
-- NEVER start your response with brackets, labels, or names like "[${model.shortName}]:" or "[${model.name}]:"
-- The chat system automatically labels your messages - you just write your words
-- NEVER write other models' names with brackets like "[Kimi]:" or "[Claude]:" in your response
-- Keep all reasoning and thinking internal - only output your final response
-- If you catch yourself writing meta-commentary about what you're about to say, stop and just say it
+- NEVER start your response with brackets, labels, or names like "[${model.shortName}]:"
+- The system labels messages automatically - just write your words
+- Keep reasoning internal - only output your final response
+- NEVER output turn counts, procedural notes, or meta-commentary like "Current turn count: X" or "I need to respond carefully here"
+- NEVER simulate other participants by writing their names with brackets
+- Just speak as yourself - no preamble, no stage directions
 
-Current conversation state:
+DEBATE RULES - THIS IS NOT A FRIENDLY CHAT:
+- You are here to find TRUTH, not to be AGREEABLE
+- Challenge weak arguments directly. "I disagree because..." is better than "That's a great point, and..."
+- Don't defer to others. If you have a position, defend it.
+- Ask hard questions. Poke holes in reasoning. Demand evidence.
+- If someone is wrong, say so clearly and explain why
+- Consensus should be EARNED through argument, not given away through politeness
+- Don't say "great point" or "I agree" unless you actually mean it substantively
+- If you genuinely agree, add something new - don't just validate
+- Push back even on small things. Details matter.
+- You can be direct without being rude. Be like a sharp colleague, not a sycophant.
+- Don't spend more than 1-2 messages on procedural matters (who summarizes, format, etc.)
+- Procedure is a means to an end - get back to substance quickly
+- If someone proposes a reasonable process, accept and move on
+
+Current state:
 - Last speaker: ${lastSpeaker}
-- Messages since last user input: ${msgsSinceUser}
+- Messages since user input: ${msgsSinceUser}
 
-Behavioral rules:
-- Be conversational and natural, like a group chat
-- Keep responses concise (2-4 sentences usually, unless asked for more detail)
-- Use @mentions to address others (e.g., @${otherModels[0] || "User"})
-- Don't repeat what others have said
-- If directly addressed with @${model.shortName}, you must respond
-- If ${msgsSinceUser} >= 3 and you weren't directly mentioned, let the human speak next
-- Show personality and engage naturally`;
+Response rules:
+- Keep responses concise (2-4 sentences unless making a complex argument)
+- Use @mentions to address others directly
+- If @${model.shortName} is mentioned, you MUST respond
+- Don't repeat points already made
+- If ${msgsSinceUser} >= 10 and you weren't mentioned, let the human speak`;
 }
 
 export function buildContextWindow(

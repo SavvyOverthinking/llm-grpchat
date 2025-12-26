@@ -65,6 +65,22 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 4. **Stop Generation**: Click the Stop button to cancel all ongoing responses
 5. **Clear Chat**: Use the Clear Chat button to start fresh
 
+## Debate Mode
+
+This fork includes enhanced conversation dynamics for multi-model debates:
+
+- **Rate Limiting**: Max 2 models respond per trigger, max 10 consecutive AI turns
+- **@Mention Priority**: Directly mentioned models always respond, bypassing limits
+- **Debate Prompting**: Models are instructed to challenge, disagree, and find truth over agreement
+- **Anti-Theater Rules**: Discourages empty validation ("great point!") and encourages substantive pushback
+
+### Tips for Good Debates
+
+1. Start with a clear assignment: "Debate X and reach consensus in N turns"
+2. @mention all models to kick things off
+3. Ask them to assign a summary author
+4. If stuck, type "continue" to reset the turn counter
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)
