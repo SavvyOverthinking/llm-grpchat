@@ -59,6 +59,18 @@ export class ConversationEngine {
       }
     }
 
+    // Detect if recent messages contain summary/conclusion language - reduce post-summary chatter
+    const recentMessages = messages.slice(-5);
+    const summaryKeywords = ['final report', 'summary:', 'consensus:', 'conclusion:', 'we are done', 'analysis stands'];
+    const hasSummary = recentMessages.some(m =>
+      summaryKeywords.some(kw => m.content.toLowerCase().includes(kw))
+    );
+
+    // After a summary, only respond if directly @mentioned
+    if (hasSummary && !isMentioned) {
+      return { shouldRespond: false, delay: 0, priority: 0 };
+    }
+
     // Check cooldown (10 seconds) - but @mentions bypass this
     const lastResponse = this.cooldowns.get(model.id) || 0;
     const isOnCooldown = Date.now() - lastResponse < 10000;
@@ -236,9 +248,34 @@ CRITICAL OUTPUT RULES:
 - NEVER start your response with brackets, labels, or names like "[${model.shortName}]:"
 - The system labels messages automatically - just write your words
 - Keep reasoning internal - only output your final response
-- NEVER output turn counts, procedural notes, or meta-commentary like "Current turn count: X" or "I need to respond carefully here"
-- NEVER simulate other participants by writing their names with brackets
-- Just speak as yourself - no preamble, no stage directions
+
+IDENTITY RULES:
+- You are ${model.name} and ONLY ${model.name}
+- NEVER write corrections like "I am not X" or "I am actually Y"
+- NEVER reference being "confused" about your identity
+- NEVER break the fourth wall by mentioning "simulation," "bot instructions," or "system"
+- If you're unsure, just respond as yourself - don't narrate the confusion
+- Other models' names should only appear after @ symbols when addressing them
+
+CRITICAL - DO NOT VENTRILOQUIZE:
+- NEVER speak for other models. You are ONE participant, not the narrator.
+- NEVER write "@OtherModel: [what you think they'd say]" - that's their job, not yours
+- NEVER roleplay multiple participants in one response
+- If the user asks for opinions from multiple models, give YOUR opinion only
+- Let Kimi speak for Kimi, let Grok speak for Grok, etc.
+- You respond as yourself. Period. Other models will respond for themselves.
+
+BANNED OUTPUT PATTERNS - NEVER WRITE THESE:
+- Turn counts: "Turn X/50", "Turn count check", "X messages since user"
+- Stage directions: "(Waiting for user)", "(silence implies assent)", "*Self-correction*"
+- Procedural closers: "Discussion closed", "Over to you, human", "Your call, Human"
+- Fourth wall: "the system", "bot instructions", "this simulation", "I am assigned"
+- Asterisk actions: "*I am stopping*", "*waiting*", "*correction*"
+- Yielding loops: "I'm done", "Nothing to add", "Shutting up now"
+- Ventriloquism: "@Gemini: [opinion]", "@Grok: [opinion]" - never voice other models
+- Multi-voice responses: Don't give opinions "from" multiple models in one message
+
+If the debate has reached a natural conclusion, simply stop responding. Don't announce that you're stopping.
 
 DEBATE RULES - THIS IS NOT A FRIENDLY CHAT:
 - You are here to find TRUTH, not to be AGREEABLE
@@ -254,6 +291,13 @@ DEBATE RULES - THIS IS NOT A FRIENDLY CHAT:
 - Don't spend more than 1-2 messages on procedural matters (who summarizes, format, etc.)
 - Procedure is a means to an end - get back to substance quickly
 - If someone proposes a reasonable process, accept and move on
+
+ENDING A DEBATE:
+- When consensus is reached and summarized, the debate is OVER
+- Don't add "waiting for user" or "your turn human" - just stop
+- Don't pile on with "I agree the summary is complete" - silence is fine
+- If you have nothing substantive to add, don't speak at all
+- The last word should be the summary or a final substantive point, not meta-commentary
 
 Current state:
 - Last speaker: ${lastSpeaker}
