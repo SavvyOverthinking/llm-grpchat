@@ -117,6 +117,10 @@ export function ChatContainer() {
     (latestMessage: Message) => {
       const state = useChatStore.getState();
 
+      // Reset responder tracking for this new trigger message
+      // This allows models to respond to AI messages, not just user messages
+      conversationEngine.resetRespondersForNewMessage();
+
       for (const model of state.activeModels) {
         const decision = conversationEngine.analyzeForResponse(
           model,

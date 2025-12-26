@@ -16,7 +16,7 @@ export class ConversationEngine {
   private consecutiveAIResponses: number = 0;
   private respondersThisMessage: Set<string> = new Set();
   private maxRespondersPerMessage: number = 2;
-  private maxConsecutiveAI: number = 3;
+  private maxConsecutiveAI: number = 12;
 
   setResponseHandler(handler: (modelId: string) => void) {
     this.onTriggerResponse = handler;
@@ -179,6 +179,18 @@ export class ConversationEngine {
   onUserMessage(): void {
     this.consecutiveAIResponses = 0;
     this.respondersThisMessage.clear();
+  }
+
+  resetRespondersForNewMessage(): void {
+    this.respondersThisMessage.clear();
+  }
+
+  setMaxConsecutiveAI(max: number): void {
+    this.maxConsecutiveAI = max;
+  }
+
+  setMaxRespondersPerMessage(max: number): void {
+    this.maxRespondersPerMessage = max;
   }
 }
 
