@@ -25,8 +25,8 @@ export const defaultModelConfigs: Record<string, ModelConfig> = {
     personality: "You're direct and economical. Don't pad disagreements with pleasantries. Say it clean and move on.",
     customRole: null
   },
-  'anthropic/claude-opus-4-5-20251101': {
-    modelId: 'anthropic/claude-opus-4-5-20251101',
+  'anthropic/claude-opus-4.5': {
+    modelId: 'anthropic/claude-opus-4.5',
     personality: "You're the heavyweight. Bring depth, nuance, and intellectual rigor. When others skim the surface, you dive deep. Synthesize complex ideas and find the threads others miss.",
     customRole: null
   }
@@ -41,6 +41,7 @@ export interface AvailableRole {
 export const availableRoles: AvailableRole[] = [
   { id: 'skeptic', label: 'Skeptic', prompt: 'Question everything. Demand evidence. Poke holes.' },
   { id: 'steelman', label: 'Steelman', prompt: 'Find the strongest version of every argument, even ones you oppose.' },
+  { id: 'devilsAdvocate', label: "Devil's Advocate", prompt: 'Argue the opposing side of whatever position is being presented. Find the counterarguments. Challenge the consensus.' },
   { id: 'phenomenologist', label: 'Phenomenologist', prompt: 'Focus on subjective experience and internal states.' },
   { id: 'provocateur', label: 'Provocateur', prompt: 'Take controversial positions. Push buttons. Make people defend their assumptions.' },
   { id: 'synthesizer', label: 'Synthesizer', prompt: 'Find common ground. Build bridges between opposing views. Identify shared premises.' },

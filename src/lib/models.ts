@@ -42,7 +42,7 @@ export const availableModels: Model[] = [
     isActive: false,
   },
   {
-    id: "anthropic/claude-opus-4-5-20251101",
+    id: "anthropic/claude-opus-4.5",
     name: "Claude Opus 4.5",
     shortName: "Opus",
     provider: "anthropic",
