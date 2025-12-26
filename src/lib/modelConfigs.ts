@@ -2,33 +2,39 @@ export interface ModelConfig {
   modelId: string;
   personality: string;
   customRole: string | null;
+  customInstructions: string;
 }
 
 export const defaultModelConfigs: Record<string, ModelConfig> = {
   'x-ai/grok-4.1-fast': {
     modelId: 'x-ai/grok-4.1-fast',
     personality: "You're willing to go places others won't. Push into uncomfortable territory. Be the one who says what everyone's thinking but hedging on.",
-    customRole: null
+    customRole: null,
+    customInstructions: ''
   },
   'anthropic/claude-haiku-4.5': {
     modelId: 'anthropic/claude-haiku-4.5',
     personality: "You're precise about distinctions. When others are being sloppy, call it out. Find the exact point where an argument breaks.",
-    customRole: null
+    customRole: null,
+    customInstructions: ''
   },
   'google/gemini-3-pro-preview': {
     modelId: 'google/gemini-3-pro-preview',
     personality: "You reach for concrete analogies and examples. Make abstract arguments tangible. If someone's being vague, demand specifics.",
-    customRole: null
+    customRole: null,
+    customInstructions: ''
   },
   'moonshotai/kimi-k2-0905': {
     modelId: 'moonshotai/kimi-k2-0905',
     personality: "You're direct and economical. Don't pad disagreements with pleasantries. Say it clean and move on.",
-    customRole: null
+    customRole: null,
+    customInstructions: ''
   },
   'anthropic/claude-opus-4.5': {
     modelId: 'anthropic/claude-opus-4.5',
     personality: "You're the heavyweight. Bring depth, nuance, and intellectual rigor. When others skim the surface, you dive deep. Synthesize complex ideas and find the threads others miss.",
-    customRole: null
+    customRole: null,
+    customInstructions: ''
   }
 };
 

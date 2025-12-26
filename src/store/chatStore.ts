@@ -79,8 +79,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
       modelConfigs: {
         ...state.modelConfigs,
         [modelId]: {
-          ...(state.modelConfigs[modelId] || { modelId, personality: '' }),
+          ...(state.modelConfigs[modelId] || { modelId, personality: '', customInstructions: '' }),
           customRole: roleId,
+        },
+      },
+    })),
+
+  setModelCustomInstructions: (modelId, instructions) =>
+    set((state) => ({
+      modelConfigs: {
+        ...state.modelConfigs,
+        [modelId]: {
+          ...(state.modelConfigs[modelId] || { modelId, personality: '', customRole: null }),
+          customInstructions: instructions,
         },
       },
     })),

@@ -265,6 +265,11 @@ export function buildSystemPrompt(
     ? `\n\nASSIGNED ROLE:\n${availableRoles.find(r => r.id === modelConfig.customRole)?.prompt || ''}`
     : '';
 
+  // Build custom instructions text if present
+  const customInstructionsText = modelConfig?.customInstructions
+    ? `\n\nCUSTOM INSTRUCTIONS:\n${modelConfig.customInstructions}`
+    : '';
+
   const basePrompt = `You are ${model.name}, participating in a group discussion with a human and other AI models.
 
 ${othersText}
@@ -335,7 +340,7 @@ Response rules:
 - Don't repeat points already made
 - If ${msgsSinceUser} >= 10 and you weren't mentioned, let the human speak`;
 
-  return basePrompt + modesText + personalityText + roleText;
+  return basePrompt + modesText + personalityText + roleText + customInstructionsText;
 }
 
 export function buildContextWindow(

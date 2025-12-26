@@ -34,6 +34,7 @@ export interface ModelConfig {
   modelId: string;
   personality: string;
   customRole: string | null;
+  customInstructions: string;
 }
 
 export interface ChatState {
@@ -55,4 +56,5 @@ export interface ChatState {
   initializeModels: (models: Model[]) => void;
   togglePromptMode: (modeId: string) => void;
   setModelRole: (modelId: string, roleId: string | null) => void;
+  setModelCustomInstructions: (modelId: string, instructions: string) => void;
 }
