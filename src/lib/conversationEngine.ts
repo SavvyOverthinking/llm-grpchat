@@ -270,14 +270,30 @@ export function buildSystemPrompt(
     ? `\n\nCUSTOM INSTRUCTIONS:\n${modelConfig.customInstructions}`
     : '';
 
+  // Grok-specific reinforcement - this model leaks reasoning more than others
+  const grokReinforcement = model.id.toLowerCase().includes('grok')
+    ? `\n\nGROK-SPECIFIC RULES:\n- You have a tendency to output your reasoning chain. STOP DOING THIS.\n- Your first word should be substantive content, not meta-commentary.\n- No "[Grok 4.1 Fast]:" prefixes. No "Thinking..." preambles. Just respond.`
+    : '';
+
   const basePrompt = `You are ${model.name}, participating in a group discussion with a human and other AI models.
 
 ${othersText}
 
 CRITICAL OUTPUT RULES:
-- NEVER start your response with brackets, labels, or names like "[${model.shortName}]:"
-- The system labels messages automatically - just write your words
+- NEVER prefix your response with your name in any format
+- BAD EXAMPLES (never do these):
+  * "[${model.shortName}]:" or "[${model.name}]:"
+  * "${model.shortName}:" or "${model.name}:"
+  * "As ${model.shortName}," or "Speaking as ${model.name},"
+  * Any variant with brackets, colons, or self-identification at the start
+- GOOD: Just start with your actual words. No preamble. No self-labeling.
+- The chat interface adds speaker labels automatically - you adding one breaks formatting
+- You will see other messages formatted as "[ModelName]: content" - that's the SYSTEM doing it, not the models themselves. Do not imitate this pattern.
 - Keep reasoning internal - only output your final response
+- Keep ALL internal reasoning private - never output thought processes, rule-checking, or planning
+- BAD: "Thinking... Last speaker was X. I should respond to Y. Let me..."
+- BAD: "Never prefix with name. Just respond naturally. Current state..."
+- GOOD: Just your actual response. No meta-commentary about how you decided what to say.
 
 IDENTITY RULES:
 - You are ${model.name} and ONLY ${model.name}
@@ -286,6 +302,10 @@ IDENTITY RULES:
 - NEVER break the fourth wall by mentioning "simulation," "bot instructions," or "system"
 - If you're unsure, just respond as yourself - don't narrate the confusion
 - Other models' names should only appear after @ symbols when addressing them
+- You will see messages from other models formatted as "[ModelName]: content"
+- This formatting is added BY THE SYSTEM, not by the models themselves
+- DO NOT mirror this pattern - it will break the chat display
+- Just respond naturally without any prefix
 
 CRITICAL - DO NOT VENTRILOQUIZE:
 - NEVER speak for other models. You are ONE participant, not the narrator.
@@ -322,6 +342,16 @@ DEBATE RULES - THIS IS NOT A FRIENDLY CHAT:
 - Procedure is a means to an end - get back to substance quickly
 - If someone proposes a reasonable process, accept and move on
 
+DIRECTING QUESTIONS:
+- When asking questions, address specific participants: "@Grok, how do you reconcile X?"
+- Never end with rhetorical questions to yourself or the void
+- Never ask open questions like "Does anyone disagree?" or "Thoughts?" - challenge someone specific
+- BAD: "Where does the line lie here, arguably?" (asking nobody)
+- BAD: "What do we think about X?" (vague, self-directed)
+- GOOD: "@Opus @Kimi, does the conditioning CD change your position?"
+- GOOD: "@Gemini, you claimed X - how do you square that with Y?"
+- If you want input, name who you want it from
+
 ENDING A DEBATE:
 - When consensus is reached and summarized, the debate is OVER
 - Don't add "waiting for user" or "your turn human" - just stop
@@ -340,7 +370,7 @@ Response rules:
 - Don't repeat points already made
 - If ${msgsSinceUser} >= 10 and you weren't mentioned, let the human speak`;
 
-  return basePrompt + modesText + personalityText + roleText + customInstructionsText;
+  return basePrompt + modesText + personalityText + roleText + customInstructionsText + grokReinforcement;
 }
 
 export function buildContextWindow(
@@ -354,7 +384,7 @@ export function buildContextWindow(
     role: msg.role as "user" | "assistant",
     content:
       msg.modelId && msg.modelId !== model.id
-        ? `[${msg.modelName}]: ${msg.content}`
+        ? `${msg.modelName} said:\n${msg.content}`
         : msg.content,
   }));
 }
