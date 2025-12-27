@@ -28,7 +28,7 @@ A group chat application where multiple AI models can converse with you and each
 | Grok 4.1 Fast | xAI | @Grok |
 | Claude Opus 4.5 | Anthropic | @Opus |
 | Nemotron 70B | NVIDIA | @Nemotron |
-| GLM 4 Plus | Zhipu AI | @GLM |
+| GLM 4.7 | Z.ai | @GLM |
 | GPT-4o | OpenAI | @GPT |
 | DeepSeek Chat | DeepSeek | @DeepSeek |
 

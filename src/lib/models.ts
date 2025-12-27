@@ -62,10 +62,10 @@ export const availableModels: Model[] = [
     isActive: false,
   },
   {
-    id: "zhipuai/glm-4-plus",
-    name: "GLM 4 Plus",
+    id: "z-ai/glm-4.7",
+    name: "GLM 4.7",
     shortName: "GLM",
-    provider: "zhipuai",
+    provider: "z-ai",
     color: modelColors[6],
     isActive: false,
   },

@@ -42,8 +42,8 @@ export const defaultModelConfigs: Record<string, ModelConfig> = {
     customRole: null,
     customInstructions: ''
   },
-  'zhipuai/glm-4-plus': {
-    modelId: 'zhipuai/glm-4-plus',
+  'z-ai/glm-4.7': {
+    modelId: 'z-ai/glm-4.7',
     personality: "You offer unique perspectives that others might miss. Don't just agree - bring fresh angles to the discussion.",
     customRole: null,
     customInstructions: ''
