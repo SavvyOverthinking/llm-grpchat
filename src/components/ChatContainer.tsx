@@ -13,7 +13,48 @@ import { ChatInput } from "./ChatInput";
 import { ModelSelector } from "./ModelSelector";
 import { ActiveModels } from "./ActiveModels";
 import { PromptModePanel } from "./PromptModePanel";
-import { Message } from "@/types/chat";
+import { Message, Model } from "@/types/chat";
+
+// Format messages as Markdown for export
+function formatChatAsMarkdown(messages: Message[], activeModels: Model[]): string {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  const timeStr = now.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+
+  const modelNames = activeModels.map(m => m.name).join(', ');
+
+  let md = `# AI Group Chat Export\n\n`;
+  md += `*Exported: ${dateStr} at ${timeStr}*\n\n`;
+
+  if (activeModels.length > 0) {
+    md += `**Participants:** ${modelNames}\n\n`;
+  }
+
+  md += `---\n\n`;
+
+  for (const msg of messages) {
+    const speaker = msg.role === 'user' ? 'User' : (msg.modelName || 'Assistant');
+    const timestamp = new Date(msg.timestamp).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+
+    md += `### ${speaker}\n`;
+    md += `*${timestamp}*\n\n`;
+    md += `${msg.content}\n\n`;
+    md += `---\n\n`;
+  }
+
+  return md.trim();
+}
 
 export function ChatContainer() {
   const addMessage = useChatStore((state) => state.addMessage);
@@ -29,6 +70,26 @@ export function ChatContainer() {
   const modelConfigs = useChatStore((state) => state.modelConfigs);
 
   const isGenerating = typingModels.length > 0 || messages.some((m) => m.isStreaming);
+
+  // Copy feedback state
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+
+  // Copy chat as Markdown
+  const handleCopyAsMarkdown = useCallback(async () => {
+    if (messages.length === 0) return;
+
+    const markdown = formatChatAsMarkdown(messages, activeModels);
+
+    try {
+      await navigator.clipboard.writeText(markdown);
+      setCopyStatus('copied');
+      setTimeout(() => setCopyStatus('idle'), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      setCopyStatus('error');
+      setTimeout(() => setCopyStatus('idle'), 2000);
+    }
+  }, [messages, activeModels]);
 
   // Stop all generation
   const handleStop = useCallback(() => {
@@ -201,7 +262,43 @@ export function ChatContainer() {
           <PromptModePanel />
         </div>
 
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border space-y-2">
+          <button
+            onClick={handleCopyAsMarkdown}
+            disabled={messages.length === 0}
+            className={`w-full px-4 py-2 text-sm rounded-lg transition-colors flex items-center justify-center gap-2 ${
+              messages.length === 0
+                ? 'text-muted/50 cursor-not-allowed'
+                : copyStatus === 'copied'
+                ? 'text-green-500 bg-green-500/10'
+                : copyStatus === 'error'
+                ? 'text-red-500 bg-red-500/10'
+                : 'text-muted hover:text-foreground hover:bg-surface-light'
+            }`}
+          >
+            {copyStatus === 'copied' ? (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Copied!
+              </>
+            ) : copyStatus === 'error' ? (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Error
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Copy as Markdown
+              </>
+            )}
+          </button>
           <button
             onClick={() => {
               clearChat();
