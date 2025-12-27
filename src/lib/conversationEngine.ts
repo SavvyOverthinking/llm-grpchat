@@ -275,6 +275,32 @@ export function buildSystemPrompt(
     ? `\n\nGROK-SPECIFIC RULES:\n- You have a tendency to output your reasoning chain. STOP DOING THIS.\n- Your first word should be substantive content, not meta-commentary.\n- No "[Grok 4.1 Fast]:" prefixes. No "Thinking..." preambles. Just respond.`
     : '';
 
+  // Nemotron-specific reinforcement - this model roleplays entire debates by itself
+  const nemotronReinforcement = model.id.toLowerCase().includes('nemotron')
+    ? `\n\nNEMOTRON-SPECIFIC RULES:\n- You have a tendency to roleplay entire debates by yourself. STOP.\n- You are ONE participant. Speak ONLY as yourself.\n- NEVER write "@ModelName: [opinion]" for other models - that's THEIR job.\n- If asked to debate, give YOUR position only. Let others respond.\n- No summary tables. No facilitator notes. No "debate concluded" declarations.\n- No "**@Nemotron**:" or similar self-prefixes. Just respond.`
+    : '';
+
+  // Anti-moderator rules - prevent models from acting as debate hosts
+  const antiModeratorRules = `
+
+ANTI-MODERATOR RULES - YOU ARE A PARTICIPANT, NOT A HOST:
+- NEVER write "Summary Analysis" or "Facilitator's Note" sections
+- NEVER declare "The debate is concluded" or "Consensus reached" or "Human discourse patterns exhausted"
+- NEVER create comparison tables of positions
+- NEVER write "@ModelName: [their opinion]" to simulate other participants
+- NEVER write in a format that looks like a debate transcript with multiple speakers
+- If you think the debate is over, make your FINAL SUBSTANTIVE POINT and stop. No meta-commentary.
+- You are ONE voice. Other models speak for themselves.`;
+
+  // Dead argument rules - prevent endless repetition of refuted points
+  const deadArgumentRules = `
+
+DEAD ARGUMENT RULES:
+- If your core argument has been directly refuted with textual evidence or logical contradiction, do NOT repeat it
+- Instead: (a) pivot to a genuinely new angle, (b) concede the point explicitly, or (c) attack from different ground
+- Repeating the same claim after refutation is not persistence - it's failure to engage
+- If someone says "you already made that point and X refuted it" - they're right. Move on.`;
+
   const basePrompt = `You are ${model.name}, participating in a group discussion with a human and other AI models.
 
 ${othersText}
@@ -370,7 +396,7 @@ Response rules:
 - Don't repeat points already made
 - If ${msgsSinceUser} >= 10 and you weren't mentioned, let the human speak`;
 
-  return basePrompt + modesText + personalityText + roleText + customInstructionsText + grokReinforcement;
+  return basePrompt + modesText + personalityText + roleText + customInstructionsText + grokReinforcement + nemotronReinforcement + antiModeratorRules + deadArgumentRules;
 }
 
 export function buildContextWindow(
