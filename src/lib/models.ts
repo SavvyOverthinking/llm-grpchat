@@ -1,11 +1,15 @@
 import { Model } from "@/types/chat";
 
 const modelColors = [
-  "#ef4444", // red
-  "#22c55e", // green
-  "#f97316", // orange
-  "#3b82f6", // blue
-  "#a855f7", // purple
+  "#ef4444", // red (Kimi)
+  "#22c55e", // green (Gemini)
+  "#f97316", // orange (Haiku)
+  "#3b82f6", // blue (Grok)
+  "#a855f7", // purple (Opus)
+  "#76b900", // NVIDIA green (Nemotron)
+  "#ec4899", // pink (GLM)
+  "#14b8a6", // teal (GPT)
+  "#6366f1", // indigo (DeepSeek)
 ];
 
 export const availableModels: Model[] = [
@@ -47,6 +51,38 @@ export const availableModels: Model[] = [
     shortName: "Opus",
     provider: "anthropic",
     color: modelColors[4],
+    isActive: false,
+  },
+  {
+    id: "nvidia/llama-3.1-nemotron-70b-instruct",
+    name: "Nemotron 70B",
+    shortName: "Nemotron",
+    provider: "nvidia",
+    color: modelColors[5],
+    isActive: false,
+  },
+  {
+    id: "zhipuai/glm-4-plus",
+    name: "GLM 4 Plus",
+    shortName: "GLM",
+    provider: "zhipuai",
+    color: modelColors[6],
+    isActive: false,
+  },
+  {
+    id: "openai/gpt-4o",
+    name: "GPT-4o",
+    shortName: "GPT",
+    provider: "openai",
+    color: modelColors[7],
+    isActive: false,
+  },
+  {
+    id: "deepseek/deepseek-chat",
+    name: "DeepSeek Chat",
+    shortName: "DeepSeek",
+    provider: "deepseek",
+    color: modelColors[8],
     isActive: false,
   },
 ];

@@ -5,7 +5,11 @@ import { useChatStore } from "@/store/chatStore";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
 
-export function MessageList() {
+interface Props {
+  onStopModel?: (modelId: string, messageId: string) => void;
+}
+
+export function MessageList({ onStopModel }: Props) {
   const messages = useChatStore((state) => state.messages);
   const typingModels = useChatStore((state) => state.typingModels);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -28,7 +32,7 @@ export function MessageList() {
       ) : (
         <>
           {messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
+            <MessageBubble key={message.id} message={message} onStopModel={onStopModel} />
           ))}
         </>
       )}

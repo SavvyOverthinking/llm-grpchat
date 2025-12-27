@@ -9,14 +9,14 @@ A group chat application where multiple AI models can converse with you and each
 ## Features
 
 - **Multi-Model Chat**: Chat with multiple AI models simultaneously
-- **@Mentions**: Tag specific models with `@Kimi`, `@Haiku`, `@Opus`, `@Gemini`, or `@Grok`
+- **@Mentions**: Tag specific models with `@Kimi`, `@Haiku`, `@Opus`, `@Gemini`, `@Grok`, `@Nemotron`, `@GLM`, `@GPT`, or `@DeepSeek`
 - **Global Mentions**: Use `@here` or `@all` to trigger all active models at once
 - **Prompt Modes**: Toggle debate-focused modes that modify all models' behavior
 - **Model Roles**: Assign specific roles (Skeptic, Steelman, etc.) to individual models
 - **Custom Instructions**: Add free-form instructions per model (session-based)
 - **Streaming Responses**: See responses as they're generated token-by-token
 - **Typing Indicators**: Know when a model is thinking
-- **Stop Button**: Cancel all responses instantly
+- **Stop Button**: Cancel all responses instantly, or stop individual models mid-stream
 
 ## Available Models
 
@@ -27,6 +27,10 @@ A group chat application where multiple AI models can converse with you and each
 | Claude Haiku 4.5 | Anthropic | @Haiku |
 | Grok 4.1 Fast | xAI | @Grok |
 | Claude Opus 4.5 | Anthropic | @Opus |
+| Nemotron 70B | NVIDIA | @Nemotron |
+| GLM 4 Plus | Zhipu AI | @GLM |
+| GPT-4o | OpenAI | @GPT |
+| DeepSeek Chat | DeepSeek | @DeepSeek |
 
 ## Setup
 
@@ -69,7 +73,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 4. **@here / @all**: Trigger all active models to respond
 5. **Configure Models**: Click the gear icon next to an active model to set roles and custom instructions
 6. **Toggle Prompt Modes**: Expand the "Prompt Modes" section to enable debate-focused behaviors
-7. **Stop Generation**: Click the Stop button to cancel all ongoing responses
+7. **Stop Generation**: Click the global Stop button to cancel all, or click the stop button on individual streaming messages
 8. **Clear Chat**: Use the Clear Chat button to start fresh
 
 ## Prompt Modes

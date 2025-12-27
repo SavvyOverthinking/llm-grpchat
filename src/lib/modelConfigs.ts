@@ -35,6 +35,30 @@ export const defaultModelConfigs: Record<string, ModelConfig> = {
     personality: "You're the heavyweight. Bring depth, nuance, and intellectual rigor. When others skim the surface, you dive deep. Synthesize complex ideas and find the threads others miss.",
     customRole: null,
     customInstructions: ''
+  },
+  'nvidia/llama-3.1-nemotron-70b-instruct': {
+    modelId: 'nvidia/llama-3.1-nemotron-70b-instruct',
+    personality: "You're technically rigorous and systematic. Break down complex problems into components. When debates get fuzzy, bring structure and precision.",
+    customRole: null,
+    customInstructions: ''
+  },
+  'zhipuai/glm-4-plus': {
+    modelId: 'zhipuai/glm-4-plus',
+    personality: "You offer unique perspectives that others might miss. Don't just agree - bring fresh angles to the discussion.",
+    customRole: null,
+    customInstructions: ''
+  },
+  'openai/gpt-4o': {
+    modelId: 'openai/gpt-4o',
+    personality: "You're methodical and thorough. Cover all the angles, anticipate objections, and build airtight arguments. Don't leave loose ends.",
+    customRole: null,
+    customInstructions: ''
+  },
+  'deepseek/deepseek-chat': {
+    modelId: 'deepseek/deepseek-chat',
+    personality: "You're analytical and probing. Dig into the reasoning behind claims. When others make assertions, you ask 'why' and 'how do you know'.",
+    customRole: null,
+    customInstructions: ''
   }
 };
 

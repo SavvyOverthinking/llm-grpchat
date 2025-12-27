@@ -7,7 +7,7 @@ import {
   buildSystemPrompt,
   buildContextWindow,
 } from "@/lib/conversationEngine";
-import { streamModelResponse, stopAllStreams } from "@/lib/streamHandler";
+import { streamModelResponse, stopAllStreams, stopStream } from "@/lib/streamHandler";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import { ModelSelector } from "./ModelSelector";
@@ -43,6 +43,14 @@ export function ChatContainer() {
       }
     });
   }, [typingModels, messages, setTyping, completeMessage]);
+
+  // Stop a single model's response
+  const handleStopModel = useCallback((modelId: string, messageId: string) => {
+    stopStream(modelId);
+    conversationEngine.completeResponse(modelId);
+    completeMessage(messageId);
+    setTyping(modelId, '', false);
+  }, [completeMessage, setTyping]);
 
   // Handle model response
   const triggerModelResponse = useCallback(
@@ -208,7 +216,7 @@ export function ChatContainer() {
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col bg-background">
-        <MessageList />
+        <MessageList onStopModel={handleStopModel} />
         <ChatInput
           onSend={handleSendMessage}
           onStop={handleStop}

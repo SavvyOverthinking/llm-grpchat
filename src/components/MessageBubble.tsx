@@ -6,9 +6,10 @@ import { useMemo } from "react";
 
 interface Props {
   message: Message;
+  onStopModel?: (modelId: string, messageId: string) => void;
 }
 
-export function MessageBubble({ message }: Props) {
+export function MessageBubble({ message, onStopModel }: Props) {
   const activeModels = useChatStore((state) => state.activeModels);
   const availableModels = useChatStore((state) => state.availableModels);
   const isUser = message.role === "user";
@@ -89,6 +90,18 @@ export function MessageBubble({ message }: Props) {
             <span className="inline-block w-2 h-4 bg-foreground/70 animate-blink ml-0.5" />
           )}
         </div>
+        {message.isStreaming && message.modelId && onStopModel && (
+          <button
+            onClick={() => onStopModel(message.modelId!, message.id)}
+            className="mt-2 flex items-center gap-1 px-2 py-1 text-xs text-red-500 hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
+            title="Stop this response"
+          >
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+              <rect x="6" y="6" width="12" height="12" rx="1" />
+            </svg>
+            Stop
+          </button>
+        )}
       </div>
     </div>
   );
