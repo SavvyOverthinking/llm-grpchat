@@ -15,8 +15,8 @@ import { ActiveModels } from "./ActiveModels";
 import { PromptModePanel } from "./PromptModePanel";
 import { Message, Model } from "@/types/chat";
 
-// Format messages as Markdown for export
-function formatChatAsMarkdown(messages: Message[], activeModels: Model[]): string {
+// Format messages as Markdown for export with colored borders
+function formatChatAsMarkdown(messages: Message[], activeModels: Model[], availableModels: Model[]): string {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -29,7 +29,11 @@ function formatChatAsMarkdown(messages: Message[], activeModels: Model[]): strin
     minute: '2-digit',
   });
 
+  const allModels = [...activeModels, ...availableModels];
   const modelNames = activeModels.map(m => m.name).join(', ');
+
+  // User message color (matches the primary/blue color in UI)
+  const userColor = '#3b82f6';
 
   let md = `# AI Group Chat Export\n\n`;
   md += `*Exported: ${dateStr} at ${timeStr}*\n\n`;
@@ -41,16 +45,27 @@ function formatChatAsMarkdown(messages: Message[], activeModels: Model[]): strin
   md += `---\n\n`;
 
   for (const msg of messages) {
-    const speaker = msg.role === 'user' ? 'User' : (msg.modelName || 'Assistant');
+    const isUser = msg.role === 'user';
+    const speaker = isUser ? 'User' : (msg.modelName || 'Assistant');
     const timestamp = new Date(msg.timestamp).toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
     });
 
-    md += `### ${speaker}\n`;
-    md += `*${timestamp}*\n\n`;
+    // Get color for this message
+    let color = userColor;
+    if (!isUser && msg.modelId) {
+      const model = allModels.find(m => m.id === msg.modelId);
+      if (model) {
+        color = model.color;
+      }
+    }
+
+    // Use HTML for colored left border (works in GitHub, VS Code, Obsidian, etc.)
+    md += `<div style="border-left: 4px solid ${color}; padding-left: 16px; margin: 16px 0;">\n\n`;
+    md += `**<span style="color: ${color}">${speaker}</span>** · *${timestamp}*\n\n`;
     md += `${msg.content}\n\n`;
-    md += `---\n\n`;
+    md += `</div>\n\n`;
   }
 
   return md.trim();
@@ -62,6 +77,7 @@ export function ChatContainer() {
   const completeMessage = useChatStore((state) => state.completeMessage);
   const setTyping = useChatStore((state) => state.setTyping);
   const activeModels = useChatStore((state) => state.activeModels);
+  const availableModels = useChatStore((state) => state.availableModels);
   const typingModels = useChatStore((state) => state.typingModels);
   const contextWindowSize = useChatStore((state) => state.contextWindowSize);
   const clearChat = useChatStore((state) => state.clearChat);
@@ -78,7 +94,7 @@ export function ChatContainer() {
   const handleCopyAsMarkdown = useCallback(async () => {
     if (messages.length === 0) return;
 
-    const markdown = formatChatAsMarkdown(messages, activeModels);
+    const markdown = formatChatAsMarkdown(messages, activeModels, availableModels);
 
     try {
       await navigator.clipboard.writeText(markdown);
@@ -89,7 +105,7 @@ export function ChatContainer() {
       setCopyStatus('error');
       setTimeout(() => setCopyStatus('idle'), 2000);
     }
-  }, [messages, activeModels]);
+  }, [messages, activeModels, availableModels]);
 
   // Stop all generation
   const handleStop = useCallback(() => {
