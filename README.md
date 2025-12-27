@@ -9,8 +9,11 @@ A group chat application where multiple AI models can converse with you and each
 ## Features
 
 - **Multi-Model Chat**: Chat with multiple AI models simultaneously
-- **@Mentions**: Tag specific models with `@Kimi`, `@Claude`, `@Gemini`, or `@Grok`
-- **Organic Conversations**: Models respond naturally and can interact with each other
+- **@Mentions**: Tag specific models with `@Kimi`, `@Haiku`, `@Opus`, `@Gemini`, or `@Grok`
+- **Global Mentions**: Use `@here` or `@all` to trigger all active models at once
+- **Prompt Modes**: Toggle debate-focused modes that modify all models' behavior
+- **Model Roles**: Assign specific roles (Skeptic, Steelman, etc.) to individual models
+- **Custom Instructions**: Add free-form instructions per model (session-based)
 - **Streaming Responses**: See responses as they're generated token-by-token
 - **Typing Indicators**: Know when a model is thinking
 - **Stop Button**: Cancel all responses instantly
@@ -21,15 +24,16 @@ A group chat application where multiple AI models can converse with you and each
 |-------|----------|-----|
 | Kimi K2 | Moonshot AI | @Kimi |
 | Gemini 3 Pro | Google | @Gemini |
-| Claude Haiku 4.5 | Anthropic | @Claude |
+| Claude Haiku 4.5 | Anthropic | @Haiku |
 | Grok 4.1 Fast | xAI | @Grok |
+| Claude Opus 4.5 | Anthropic | @Opus |
 
 ## Setup
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/AllAboutAI-YT/llm-grpchat.git
+git clone https://github.com/SavvyOverthinking/llm-grpchat.git
 cd llm-grpchat
 ```
 
@@ -62,8 +66,36 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 1. **Select Models**: Click on models in the left sidebar to add them to the chat
 2. **Send Messages**: Type in the input box and press Enter or click Send
 3. **@Mention Models**: Use `@ModelName` to direct a message to a specific model
-4. **Stop Generation**: Click the Stop button to cancel all ongoing responses
-5. **Clear Chat**: Use the Clear Chat button to start fresh
+4. **@here / @all**: Trigger all active models to respond
+5. **Configure Models**: Click the gear icon next to an active model to set roles and custom instructions
+6. **Toggle Prompt Modes**: Expand the "Prompt Modes" section to enable debate-focused behaviors
+7. **Stop Generation**: Click the Stop button to cancel all ongoing responses
+8. **Clear Chat**: Use the Clear Chat button to start fresh
+
+## Prompt Modes
+
+Toggle these modes to change how all models behave:
+
+| Mode | Description |
+|------|-------------|
+| **Direct Mode** | Skip performative caution, state analysis directly |
+| **Steelman Mode** | Construct strongest version of arguments before attacking |
+| **Socratic Mode** | Ask probing questions, expose contradictions |
+| **Evidence Mode** | Demand concrete evidence, reject vague assertions |
+| **Adversarial Mode** | Maximum pushback, find weaknesses in every argument |
+
+## Model Roles
+
+Assign roles to individual models for specialized behavior:
+
+| Role | Behavior |
+|------|----------|
+| **Skeptic** | Question everything, demand evidence |
+| **Steelman** | Find strongest version of every argument |
+| **Devil's Advocate** | Argue the opposing side |
+| **Phenomenologist** | Focus on subjective experience |
+| **Provocateur** | Take controversial positions |
+| **Synthesizer** | Find common ground, build bridges |
 
 ## Debate Mode
 
@@ -73,11 +105,12 @@ This fork includes enhanced conversation dynamics for multi-model debates:
 - **@Mention Priority**: Directly mentioned models always respond, bypassing limits
 - **Debate Prompting**: Models are instructed to challenge, disagree, and find truth over agreement
 - **Anti-Theater Rules**: Discourages empty validation ("great point!") and encourages substantive pushback
+- **Question Directing**: Models must address questions to specific participants via @mentions
 
 ### Tips for Good Debates
 
 1. Start with a clear assignment: "Debate X and reach consensus in N turns"
-2. @mention all models to kick things off
+2. Use `@here` to kick things off with all models
 3. Ask them to assign a summary author
 4. If stuck, type "continue" to reset the turn counter
 
@@ -103,12 +136,15 @@ src/
 │   ├── ChatInput.tsx        # Message input with stop button
 │   ├── MessageBubble.tsx    # Individual message display
 │   ├── MessageList.tsx      # Scrollable message container
-│   ├── ModelSelector.tsx    # Model toggle buttons
+│   ├── ModelSelector.tsx    # Model toggle + settings modal
+│   ├── PromptModePanel.tsx  # Prompt modes and role config
 │   ├── ActiveModels.tsx     # Shows active models
 │   └── TypingIndicator.tsx  # "X is thinking..." display
 ├── lib/
-│   ├── conversationEngine.ts # Response logic and queuing
+│   ├── conversationEngine.ts # Response logic, prompts, queuing
 │   ├── models.ts            # Model definitions
+│   ├── modelConfigs.ts      # Model personalities and roles
+│   ├── promptModes.ts       # Toggleable prompt modes
 │   └── streamHandler.ts     # API streaming utilities
 ├── store/
 │   └── chatStore.ts         # Zustand state management
