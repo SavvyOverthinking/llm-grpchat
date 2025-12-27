@@ -64,3 +64,12 @@ body {
   animation: bounce-dot 1.4s infinite ease-in-out;
   animation-delay: 0.32s;
 }
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-4px); }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 2s infinite ease-in-out;
+}
