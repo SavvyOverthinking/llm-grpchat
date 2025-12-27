@@ -63,11 +63,11 @@ export function MessageList({ onStopModel }: Props) {
   const typingCount = typingModels.length;
 
   return (
-    <div className="relative flex-1 flex flex-col">
+    <div className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
       <div
         ref={containerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-4"
+        className="flex-1 overflow-y-auto px-4 py-4 min-h-0"
       >
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center text-muted text-center">
