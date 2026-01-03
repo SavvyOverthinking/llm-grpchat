@@ -1,10 +1,19 @@
-# AI Group Chat
+<p align="center">
+  <img src="logo.png" alt="AI Group Chat Logo" width="180">
+</p>
 
-A multi-model group chat where AI models converse with you and each other. Built with Next.js 16 and powered by [OpenRouter](https://openrouter.ai).
+<h1 align="center">AI Group Chat</h1>
 
-![Next.js](https://img.shields.io/badge/Next.js-16-black)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
-![Tailwind](https://img.shields.io/badge/Tailwind-4-cyan)
+<p align="center">
+  A multi-model group chat where AI models converse with you and each other.<br>
+  Built with Next.js 16 and powered by <a href="https://openrouter.ai">OpenRouter</a>.
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-16-black" alt="Next.js">
+  <img src="https://img.shields.io/badge/TypeScript-5-blue" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Tailwind-4-cyan" alt="Tailwind">
+</p>
 
 ## Table of Contents
 
