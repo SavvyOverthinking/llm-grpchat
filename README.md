@@ -215,6 +215,10 @@ src/
     └── session.ts           # Session management types
 ```
 
+## Acknowledgments
+
+This project is a fork of [AllAboutAI-YT/llm-grpchat](https://github.com/AllAboutAI-YT/llm-grpchat) by [Kris](https://github.com/AllAboutAI-YT). The original implementation provided the foundation for multi-model group chat with OpenRouter. Version 2.0 adds wave throttling, memory system, speaker commands, and session management.
+
 ## License
 
 MIT
