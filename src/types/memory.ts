@@ -98,6 +98,7 @@ export interface MemoryState {
   importMemories: (memories: Memory[]) => void;
   exportMemories: () => Memory[];
   clearAllMemories: () => void;
+  replaceAllMemories: (memories: Memory[]) => void;
   pruneExcessMemories: () => void;
 }
 

@@ -8,7 +8,7 @@ import {
   buildSystemPrompt,
   buildContextWindow,
 } from "@/lib/conversationEngine";
-import { streamModelResponse, stopAllStreams, stopStream } from "@/lib/streamHandler";
+import { streamModelResponse, stopAllStreams, stopStream, cleanIdentityConfusion } from "@/lib/streamHandler";
 import {
   buildResponseWaves,
   initializeWaveState,
@@ -146,7 +146,7 @@ export function ChatContainer() {
   // Stop all generation
   const handleStop = useCallback(() => {
     stopAllStreams();
-    conversationEngine.reset();
+    conversationEngine.abort(); // Use abort to stop all pending + queued responses
     // Clear all typing indicators
     typingModels.forEach((t) => setTyping(t.modelId, t.modelName, false));
     // Mark all streaming messages as complete
@@ -155,6 +155,10 @@ export function ChatContainer() {
         completeMessage(m.id);
       }
     });
+    // Resume after a short delay so new messages can trigger responses
+    setTimeout(() => {
+      conversationEngine.resume();
+    }, 100);
   }, [typingModels, messages, setTyping, completeMessage]);
 
   // Stop a single model's response
@@ -240,13 +244,20 @@ export function ChatContainer() {
       // Get memories for context
       const memories = memoryState.getActiveMemories();
 
+      // Get other model names for identity confusion cleaning
+      const otherModelNames = state.activeModels
+        .filter(m => m.id !== modelId)
+        .flatMap(m => [m.name, m.shortName]);
+
       await streamModelResponse(
         model,  // Pass full model object for 2.0 API
         contextMessages,
         {
           onToken: (token) => {
             content += token;
-            updateMessage(messageId, content);
+            // Clean identity confusion patterns from the response
+            const cleanedContent = cleanIdentityConfusion(content, model.name, otherModelNames);
+            updateMessage(messageId, cleanedContent);
           },
           onComplete: () => {
             completeMessage(messageId);
@@ -277,12 +288,15 @@ export function ChatContainer() {
             }
 
             // After response, check if other models should respond
-            const latestState = useChatStore.getState();
-            const latestMessage = latestState.messages.find(
-              (m) => m.id === messageId
-            );
-            if (latestMessage) {
-              processModelResponses(latestMessage);
+            // BUT NOT if this was a speaker response - speaker responses are solo
+            if (!isSpeaker) {
+              const latestState = useChatStore.getState();
+              const latestMessage = latestState.messages.find(
+                (m) => m.id === messageId
+              );
+              if (latestMessage) {
+                processModelResponses(latestMessage);
+              }
             }
           },
           onError: (error) => {
@@ -312,6 +326,11 @@ export function ChatContainer() {
   useEffect(() => {
     conversationEngine.setResponseHandler(triggerModelResponse);
   }, [triggerModelResponse]);
+
+  // Sync maxTotalTurns from throttleSettings to conversation engine
+  useEffect(() => {
+    conversationEngine.setMaxTotalTurns(throttleSettings.maxTotalTurns ?? 20);
+  }, [throttleSettings.maxTotalTurns]);
 
   // Process which models should respond
   const processModelResponses = useCallback(
@@ -349,16 +368,26 @@ export function ChatContainer() {
 
       // Check for speaker command via @mention
       const speakerCmd = detectSpeakerCommand(content, speakerState.speakerId, activeModels);
-      if (speakerCmd) {
-        setSpeaker(speakerCmd.mentionedModel.id);
-        triggerSpeakerCommand(speakerCmd.command);
-      }
 
       const messageId = addMessage({
         role: "user",
         content,
       });
 
+      // If speaker command detected, ONLY trigger the speaker model
+      if (speakerCmd) {
+        setSpeaker(speakerCmd.mentionedModel.id);
+        triggerSpeakerCommand(speakerCmd.command);
+
+        // Directly trigger ONLY the speaker model after a short delay
+        setTimeout(() => {
+          triggerModelResponse(speakerCmd.mentionedModel.id);
+        }, 500);
+
+        return; // Don't process other models
+      }
+
+      // Regular flow for non-speaker messages
       // Track user message count for memory extraction
       userMessageCountRef.current += 1;
 
@@ -376,7 +405,7 @@ export function ChatContainer() {
         }
       }, 0);
     },
-    [addMessage, activeModels, processModelResponses, speakerState.speakerId, setSpeaker, triggerSpeakerCommand, extractionEnabled, extractionFrequency, triggerMemoryExtraction]
+    [addMessage, activeModels, processModelResponses, speakerState.speakerId, setSpeaker, triggerSpeakerCommand, extractionEnabled, extractionFrequency, triggerMemoryExtraction, triggerModelResponse]
   );
 
   return (

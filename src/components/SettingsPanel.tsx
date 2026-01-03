@@ -207,6 +207,27 @@ export function SettingsPanel() {
                       <span>2s</span>
                     </div>
                   </div>
+
+                  {/* Max Total Turns */}
+                  <div>
+                    <label className="text-xs text-muted block mb-1">
+                      Max turns per message: <span className="text-foreground font-medium">{throttleSettings.maxTotalTurns ?? 20}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="5"
+                      max="50"
+                      step="5"
+                      value={throttleSettings.maxTotalTurns ?? 20}
+                      onChange={(e) => setThrottleSettings({ maxTotalTurns: parseInt(e.target.value) })}
+                      className="w-full h-2 bg-surface rounded-lg appearance-none cursor-pointer accent-primary"
+                    />
+                    <div className="flex justify-between text-xs text-muted mt-1">
+                      <span>5</span>
+                      <span>50</span>
+                    </div>
+                    <p className="text-xs text-muted mt-1">Hard limit on AI responses before requiring user input</p>
+                  </div>
                 </div>
               )}
             </div>

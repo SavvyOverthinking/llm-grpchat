@@ -43,6 +43,47 @@ export function hasActiveStreams(): boolean {
   return activeControllers.size > 0;
 }
 
+/**
+ * Clean identity confusion patterns from model responses
+ * Removes "ModelName said:" patterns and self-identification prefixes
+ */
+export function cleanIdentityConfusion(
+  response: string,
+  modelName: string,
+  otherModelNames: string[]
+): string {
+  let cleaned = response;
+
+  // Remove "ModelName said:" or "ModelName says:" patterns for other models
+  for (const other of otherModelNames) {
+    // Match various forms: "ModelName said:", "ModelName says:", "ModelName:"
+    const patterns = [
+      new RegExp(`\\b${other}\\s+(said|says)\\s*:?\\s*`, 'gi'),
+      new RegExp(`^\\s*${other}\\s*:\\s*`, 'gim'),
+      new RegExp(`\\[${other}\\]\\s*:?\\s*`, 'gi'),
+    ];
+    for (const pattern of patterns) {
+      cleaned = cleaned.replace(pattern, '');
+    }
+  }
+
+  // Remove self-identification prefixes
+  const selfPatterns = [
+    new RegExp(`^\\s*\\[?${modelName}\\]?\\s*:?\\s*`, 'i'),
+    new RegExp(`^\\s*As ${modelName},?\\s*`, 'i'),
+    new RegExp(`^\\s*Speaking as ${modelName},?\\s*`, 'i'),
+  ];
+  for (const pattern of selfPatterns) {
+    cleaned = cleaned.replace(pattern, '');
+  }
+
+  // Remove XML message tags if model accidentally outputs them
+  cleaned = cleaned.replace(/<message from="[^"]*">\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<\/message>/gi, '');
+
+  return cleaned.trim();
+}
+
 export async function streamModelResponse(
   model: Model | string,
   messages: { role: string; content: string }[],

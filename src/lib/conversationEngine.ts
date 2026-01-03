@@ -38,6 +38,9 @@ export class ConversationEngine {
   private respondersThisMessage: Set<string> = new Set();
   private maxRespondersPerMessage: number = 2;
   private maxConsecutiveAI: number = 10;
+  private maxTotalTurns: number = 20; // Hard limit per user message
+  private totalTurnsThisSession: number = 0;
+  private isAborted: boolean = false; // Flag to stop all pending responses
 
   setResponseHandler(handler: (modelId: string) => void) {
     this.onTriggerResponse = handler;
@@ -126,6 +129,17 @@ export class ConversationEngine {
   }
 
   queueResponse(modelId: string, delay: number, priority: number): void {
+    // Check abort flag immediately
+    if (this.isAborted) {
+      return;
+    }
+
+    // Hard stop at max turns regardless of priority
+    if (this.totalTurnsThisSession >= this.maxTotalTurns) {
+      console.log('Max turns reached, stopping all responses');
+      return;
+    }
+
     // Don't queue if already queued or currently responding
     if (this.pendingModels.has(modelId)) {
       return;
@@ -133,6 +147,19 @@ export class ConversationEngine {
     this.pendingModels.add(modelId);
 
     setTimeout(() => {
+      // Re-check abort flag after delay
+      if (this.isAborted) {
+        this.pendingModels.delete(modelId);
+        return;
+      }
+
+      // Re-check turn limit after delay
+      if (this.totalTurnsThisSession >= this.maxTotalTurns) {
+        console.log('Max turns reached during delay, stopping response');
+        this.pendingModels.delete(modelId);
+        return;
+      }
+
       // Double-check still pending (might have been cleared by stop)
       if (!this.pendingModels.has(modelId)) {
         return;
@@ -174,6 +201,14 @@ export class ConversationEngine {
     this.currentlyResponding--;
     this.pendingModels.delete(modelId);
     this.consecutiveAIResponses++;
+    this.totalTurnsThisSession++;
+
+    // Check if aborted or at turn limit
+    if (this.isAborted || this.totalTurnsThisSession >= this.maxTotalTurns) {
+      // Clear the queue, don't trigger more responses
+      this.responseQueue = [];
+      return;
+    }
 
     if (this.responseQueue.length > 0) {
       const next = this.responseQueue.shift()!;
@@ -213,11 +248,14 @@ export class ConversationEngine {
     this.currentlyResponding = 0;
     this.consecutiveAIResponses = 0;
     this.respondersThisMessage.clear();
+    this.totalTurnsThisSession = 0;
+    // Note: Don't reset isAborted here - use abort()/resume() for that
   }
 
   onUserMessage(): void {
     this.consecutiveAIResponses = 0;
     this.respondersThisMessage.clear();
+    this.totalTurnsThisSession = 0; // Reset turn counter when user speaks
   }
 
   resetRespondersForNewMessage(): void {
@@ -232,13 +270,35 @@ export class ConversationEngine {
     this.maxRespondersPerMessage = max;
   }
 
+  setMaxTotalTurns(max: number): void {
+    this.maxTotalTurns = max;
+  }
+
+  abort(): void {
+    this.isAborted = true;
+    this.responseQueue = [];
+    this.pendingModels.clear();
+    this.currentlyResponding = 0;
+  }
+
+  resume(): void {
+    this.isAborted = false;
+  }
+
+  isAbortedState(): boolean {
+    return this.isAborted;
+  }
+
   getDebugState(): object {
     return {
       consecutiveAIResponses: this.consecutiveAIResponses,
       respondersThisMessage: Array.from(this.respondersThisMessage),
       pendingModels: Array.from(this.pendingModels),
       queueLength: this.responseQueue.length,
-      currentlyResponding: this.currentlyResponding
+      currentlyResponding: this.currentlyResponding,
+      totalTurnsThisSession: this.totalTurnsThisSession,
+      maxTotalTurns: this.maxTotalTurns,
+      isAborted: this.isAborted
     };
   }
 }
@@ -380,15 +440,17 @@ CRITICAL OUTPUT RULES:
 
 IDENTITY RULES:
 - You are ${model.name} and ONLY ${model.name}
+- You are NOT: ${otherModels.length > 0 ? otherModels.map(n => `"${n}"`).join(', ') : 'any other model'}
 - NEVER write corrections like "I am not X" or "I am actually Y"
 - NEVER reference being "confused" about your identity
 - NEVER break the fourth wall by mentioning "simulation," "bot instructions," or "system"
 - If you're unsure, just respond as yourself - don't narrate the confusion
 - Other models' names should only appear after @ symbols when addressing them
-- You will see messages from other models formatted as "[ModelName]: content"
-- This formatting is added BY THE SYSTEM, not by the models themselves
-- DO NOT mirror this pattern - it will break the chat display
-- Just respond naturally without any prefix
+- You will see messages from other models wrapped in <message from="ModelName"> XML tags
+- These tags are structural markers - DO NOT output them yourself
+- DO NOT write "ModelName said:" or quote other models - just respond to what they said
+- If you find yourself writing "X said:" where X is another model, STOP - that's wrong
+- Just respond naturally without any prefix or quotation of others
 
 CRITICAL - DO NOT VENTRILOQUIZE:
 - NEVER speak for other models. You are ONE participant, not the narrator.
@@ -477,9 +539,10 @@ export function buildContextWindow(
 
   return recentMessages.map((msg) => ({
     role: msg.role as "user" | "assistant",
+    // Use XML-style tags to prevent models from mimicking "X said:" format
     content:
       msg.modelId && msg.modelId !== model.id
-        ? `${msg.modelName} said:\n${msg.content}`
+        ? `<message from="${msg.modelName}">\n${msg.content}\n</message>`
         : msg.content,
   }));
 }
@@ -506,8 +569,9 @@ export function prepareMessagesForModel(
   for (const msg of recentMessages) {
     apiMessages.push({
       role: msg.role,
+      // Use XML-style tags to prevent models from mimicking "[ModelName]:" format
       content: msg.role === 'assistant'
-        ? `[${msg.modelName || 'Assistant'}]: ${msg.content}`
+        ? `<message from="${msg.modelName || 'Assistant'}">\n${msg.content}\n</message>`
         : msg.content,
     });
   }

@@ -3,6 +3,7 @@
 import { ThrottleSettings, DEFAULT_THROTTLE_SETTINGS, WaveState, INITIAL_WAVE_STATE } from './throttle';
 import { SpeakerState, INITIAL_SPEAKER_STATE, SpeakerCommand } from './speaker';
 import { SessionListItem } from './session';
+import { Memory } from './memory';
 
 export interface Model {
   id: string;
@@ -53,6 +54,7 @@ export interface ChatSessionSnapshot {
   throttleSettings: ThrottleSettings;
   contextWindowSize: number;
   speakerState: SpeakerState;
+  memories?: Memory[];  // Session-scoped memories
 }
 
 export interface ChatState {

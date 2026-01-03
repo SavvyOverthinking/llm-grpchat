@@ -12,6 +12,7 @@ export function MemoryPanel() {
   const [selectedCategory, setSelectedCategory] = useState<MemoryCategory | 'all'>('all');
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractError, setExtractError] = useState<string | null>(null);
+  const [extractSuccess, setExtractSuccess] = useState<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -54,19 +55,30 @@ export function MemoryPanel() {
 
   // Trigger manual extraction
   const handleExtract = async () => {
-    if (messages.length === 0) return;
+    console.log('[MemoryPanel] Extract button clicked');
+    if (messages.length === 0) {
+      console.log('[MemoryPanel] No messages to extract from');
+      return;
+    }
 
     setIsExtracting(true);
     setExtractError(null);
+    setExtractSuccess(null);
+
+    const messagesToExtract = messages.slice(-20);
+    console.log('[MemoryPanel] Extracting from', messagesToExtract.length, 'messages');
+
     try {
       const response = await fetch('/api/extract-memories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: messages.slice(-20), // Last 20 messages
+          messages: messagesToExtract,
           extractionModel,
         }),
       });
+
+      console.log('[MemoryPanel] API response status:', response.status);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -74,16 +86,29 @@ export function MemoryPanel() {
       }
 
       const result = await response.json();
+      console.log('[MemoryPanel] Extracted memories:', result.memories?.length || 0);
+
       // Add extracted memories to store
+      let addedCount = 0;
       for (const mem of result.memories || []) {
         addMemory({
           ...mem,
-          sourceMessageIds: [],
+          sourceMessageIds: messagesToExtract.map(m => m.id),
           extractionTurn: Math.floor(messages.length / 2),
         });
+        addedCount++;
+      }
+
+      // Show success feedback
+      if (addedCount > 0) {
+        setExtractSuccess(addedCount);
+        setTimeout(() => setExtractSuccess(null), 3000);
+      } else {
+        setExtractError('No memories extracted from conversation');
+        setTimeout(() => setExtractError(null), 3000);
       }
     } catch (error) {
-      console.error('Extraction failed:', error);
+      console.error('[MemoryPanel] Extraction failed:', error);
       setExtractError(error instanceof Error ? error.message : 'Extraction failed');
       setTimeout(() => setExtractError(null), 5000);
     } finally {
@@ -214,6 +239,14 @@ export function MemoryPanel() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     {extractError}
+                  </div>
+                )}
+                {extractSuccess !== null && (
+                  <div className="flex items-center gap-2 px-2 py-1.5 text-xs bg-green-500/10 text-green-400 rounded">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Extracted {extractSuccess} {extractSuccess === 1 ? 'memory' : 'memories'}
                   </div>
                 )}
               </div>

@@ -24,6 +24,7 @@ export interface ThrottleSettings {
   selectionMode: SelectionMode;
   showWaveIndicator: boolean;   // Show wave progress in UI
   allowPassing: boolean;        // Allow models to pass if nothing to add
+  maxTotalTurns: number;        // Hard limit on AI turns per user message
 }
 
 export const DEFAULT_THROTTLE_SETTINGS: ThrottleSettings = {
@@ -33,6 +34,7 @@ export const DEFAULT_THROTTLE_SETTINGS: ThrottleSettings = {
   selectionMode: 'random',
   showWaveIndicator: true,
   allowPassing: true,
+  maxTotalTurns: 20,
 };
 
 // Wave state for tracking progress

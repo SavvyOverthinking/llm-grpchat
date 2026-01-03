@@ -199,6 +199,14 @@ export const useMemoryStore = create<MemoryState>()(
         });
       },
 
+      replaceAllMemories: (newMemories: Memory[]) => {
+        set({
+          memories: newMemories,
+          lastExtractionTurn: 0,
+          pendingExtractionMessageIds: [],
+        });
+      },
+
       pruneExcessMemories: () => {
         const state = get();
         const activeMemories = state.memories.filter((m) => m.isActive);

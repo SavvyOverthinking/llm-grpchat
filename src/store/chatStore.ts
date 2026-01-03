@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { v4 as uuidv4 } from "uuid";
 import { ChatState, Model, Message, ChatSessionSnapshot } from "@/types/chat";
+import { useMemoryStore } from "./memoryStore";
 import {
   ThrottleSettings,
   DEFAULT_THROTTLE_SETTINGS,
@@ -183,6 +184,8 @@ export const useChatStore = create<ChatState>()(
           waveState: { ...INITIAL_WAVE_STATE },
           speakerState: { ...INITIAL_SPEAKER_STATE },
         });
+        // Also clear memories for a fresh start
+        useMemoryStore.getState().clearAllMemories();
       },
 
       initializeModels: (models) => set({ availableModels: models }),
@@ -390,6 +393,7 @@ export const useChatStore = create<ChatState>()(
       // Snapshot Helpers
       createSnapshot: (): ChatSessionSnapshot => {
         const state = get();
+        const memoryState = useMemoryStore.getState();
         return {
           messages: state.messages,
           modelConfigs: state.modelConfigs,
@@ -398,6 +402,7 @@ export const useChatStore = create<ChatState>()(
           throttleSettings: state.throttleSettings,
           contextWindowSize: state.contextWindowSize,
           speakerState: state.speakerState,
+          memories: memoryState.memories,  // Include session memories
         };
       },
 
@@ -421,6 +426,10 @@ export const useChatStore = create<ChatState>()(
           waveState: { ...INITIAL_WAVE_STATE },  // Reset wave state on load
           typingModels: [],  // Clear typing indicators
         });
+
+        // Restore session memories
+        const memoryStore = useMemoryStore.getState();
+        memoryStore.replaceAllMemories(snapshot.memories || []);
       },
     }),
     {
