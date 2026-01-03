@@ -1,19 +1,35 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 import { useChatStore } from "@/store/chatStore";
+import { useMemoryStore } from "@/store/memoryStore";
 import {
   conversationEngine,
   buildSystemPrompt,
   buildContextWindow,
 } from "@/lib/conversationEngine";
 import { streamModelResponse, stopAllStreams, stopStream } from "@/lib/streamHandler";
+import {
+  buildResponseWaves,
+  initializeWaveState,
+  advanceToNextWave,
+  updateWaveStateAfterResponse,
+  isPassResponse,
+  extractWaveContext,
+} from "@/lib/waveThrottle";
+import { detectSpeakerCommand } from "@/lib/speakerPrompt";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
 import { ModelSelector } from "./ModelSelector";
 import { ActiveModels } from "./ActiveModels";
 import { PromptModePanel } from "./PromptModePanel";
+import { SessionManager } from "./SessionManager";
+import { SettingsPanel } from "./SettingsPanel";
+import { MemoryPanel } from "./MemoryPanel";
+import { SpeakerControls } from "./SpeakerControls";
+import { WaveIndicator } from "./WaveIndicator";
 import { Message, Model } from "@/types/chat";
+import { WaveContext, INITIAL_WAVE_STATE } from "@/types/throttle";
 
 // Format messages as Markdown for export with colored borders
 function formatChatAsMarkdown(messages: Message[], activeModels: Model[], availableModels: Model[]): string {
@@ -72,6 +88,7 @@ function formatChatAsMarkdown(messages: Message[], activeModels: Model[], availa
 }
 
 export function ChatContainer() {
+  // === Existing state from chatStore ===
   const addMessage = useChatStore((state) => state.addMessage);
   const updateMessage = useChatStore((state) => state.updateMessage);
   const completeMessage = useChatStore((state) => state.completeMessage);
@@ -85,10 +102,29 @@ export function ChatContainer() {
   const promptModes = useChatStore((state) => state.promptModes);
   const modelConfigs = useChatStore((state) => state.modelConfigs);
 
-  const isGenerating = typingModels.length > 0 || messages.some((m) => m.isStreaming);
+  // === NEW 2.0 state from chatStore ===
+  const settingPrompt = useChatStore((state) => state.settingPrompt);
+  const throttleSettings = useChatStore((state) => state.throttleSettings);
+  const waveState = useChatStore((state) => state.waveState);
+  const updateWaveState = useChatStore((state) => state.updateWaveState);
+  const resetWaveState = useChatStore((state) => state.resetWaveState);
+  const speakerState = useChatStore((state) => state.speakerState);
+  const setSpeaker = useChatStore((state) => state.setSpeaker);
+  const triggerSpeakerCommand = useChatStore((state) => state.triggerSpeakerCommand);
+  const clearSpeakerMode = useChatStore((state) => state.clearSpeakerMode);
 
-  // Copy feedback state
+  // === Memory store access ===
+  const getActiveMemories = useMemoryStore((state) => state.getActiveMemories);
+  const addMemory = useMemoryStore((state) => state.addMemory);
+  const extractionEnabled = useMemoryStore((state) => state.extractionEnabled);
+  const extractionFrequency = useMemoryStore((state) => state.extractionFrequency);
+  const extractionModel = useMemoryStore((state) => state.extractionModel);
+
+  // === Local state ===
+  const isGenerating = typingModels.length > 0 || messages.some((m) => m.isStreaming);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'error'>('idle');
+  const userMessageCountRef = useRef(0);
+  const waveContextRef = useRef<WaveContext[]>([]);
 
   // Copy chat as Markdown
   const handleCopyAsMarkdown = useCallback(async () => {
@@ -129,10 +165,46 @@ export function ChatContainer() {
     setTyping(modelId, '', false);
   }, [completeMessage, setTyping]);
 
-  // Handle model response
+  // Memory extraction integration
+  const triggerMemoryExtraction = useCallback(async () => {
+    const memoryState = useMemoryStore.getState();
+    if (!memoryState.extractionEnabled) return;
+
+    const state = useChatStore.getState();
+    const recentMessages = state.messages.slice(-20);
+
+    if (recentMessages.length < 4) return; // Need at least a few exchanges
+
+    try {
+      const response = await fetch('/api/extract-memories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: recentMessages,
+          model: memoryState.extractionModel,
+        }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        for (const mem of result.memories || []) {
+          addMemory({
+            ...mem,
+            sourceMessageIds: recentMessages.map(m => m.id),
+            extractionTurn: Math.floor(state.messages.length / 2),
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Memory extraction failed:', error);
+    }
+  }, [addMemory]);
+
+  // Handle model response with 2.0 features
   const triggerModelResponse = useCallback(
     async (modelId: string) => {
       const state = useChatStore.getState();
+      const memoryState = useMemoryStore.getState();
       const model = state.activeModels.find((m) => m.id === modelId);
       if (!model) {
         conversationEngine.completeResponse(modelId);
@@ -141,24 +213,12 @@ export function ChatContainer() {
 
       setTyping(modelId, model.name, true);
 
-      // Build messages for API
-      const systemPrompt = buildSystemPrompt(
-        model,
-        state.activeModels,
-        state.messages,
-        state.promptModes,
-        state.modelConfigs
-      );
+      // Build messages for API (using the new 2.0 approach - API handles system prompt)
       const contextMessages = buildContextWindow(
         state.messages,
         contextWindowSize,
         model
       );
-
-      const apiMessages = [
-        { role: "system" as const, content: systemPrompt },
-        ...contextMessages,
-      ];
 
       // Create streaming message
       const messageId = addMessage({
@@ -172,34 +232,80 @@ export function ChatContainer() {
       setTyping(modelId, model.name, false);
 
       let content = "";
-      await streamModelResponse(modelId, apiMessages, {
-        onToken: (token) => {
-          content += token;
-          updateMessage(messageId, content);
-        },
-        onComplete: () => {
-          completeMessage(messageId);
-          conversationEngine.completeResponse(modelId);
-          console.log('Engine state after response:', conversationEngine.getDebugState());
 
-          // After response, check if other models should respond
-          const latestState = useChatStore.getState();
-          const latestMessage = latestState.messages.find(
-            (m) => m.id === messageId
-          );
-          if (latestMessage) {
-            processModelResponses(latestMessage);
-          }
+      // Determine if this model is the speaker
+      const isSpeaker = state.speakerState.speakerId === modelId;
+      const speakerMode = isSpeaker ? state.speakerState.speakerMode : null;
+
+      // Get memories for context
+      const memories = memoryState.getActiveMemories();
+
+      await streamModelResponse(
+        model,  // Pass full model object for 2.0 API
+        contextMessages,
+        {
+          onToken: (token) => {
+            content += token;
+            updateMessage(messageId, content);
+          },
+          onComplete: () => {
+            completeMessage(messageId);
+            conversationEngine.completeResponse(modelId);
+
+            // Update wave state if wave throttling is active
+            if (state.throttleSettings.enabled && state.waveState.currentWave > 0) {
+              const updatedWaveState = updateWaveStateAfterResponse(
+                state.waveState,
+                modelId,
+                content,
+                model
+              );
+              updateWaveState(updatedWaveState);
+
+              // Add to wave context for later waves
+              if (!isPassResponse(content)) {
+                waveContextRef.current = [
+                  ...waveContextRef.current,
+                  extractWaveContext(content, model),
+                ];
+              }
+            }
+
+            // Clear speaker mode after speaker responds
+            if (isSpeaker && speakerMode) {
+              clearSpeakerMode();
+            }
+
+            // After response, check if other models should respond
+            const latestState = useChatStore.getState();
+            const latestMessage = latestState.messages.find(
+              (m) => m.id === messageId
+            );
+            if (latestMessage) {
+              processModelResponses(latestMessage);
+            }
+          },
+          onError: (error) => {
+            console.error("Stream error:", error);
+            updateMessage(messageId, content || "[Error: Failed to get response]");
+            completeMessage(messageId);
+            conversationEngine.completeResponse(modelId);
+          },
         },
-        onError: (error) => {
-          console.error("Stream error:", error);
-          updateMessage(messageId, content || "[Error: Failed to get response]");
-          completeMessage(messageId);
-          conversationEngine.completeResponse(modelId);
-        },
-      });
+        {
+          // 2.0 options
+          settingPrompt: state.settingPrompt,
+          memories: memories,
+          waveContext: waveContextRef.current,
+          speakerMode: speakerMode,
+          activeModels: state.activeModels,
+          contextWindowSize: contextWindowSize,
+          promptModes: state.promptModes,
+          modelConfigs: state.modelConfigs,
+        }
+      );
     },
-    [addMessage, updateMessage, completeMessage, setTyping, contextWindowSize]
+    [addMessage, updateMessage, completeMessage, setTyping, contextWindowSize, updateWaveState, clearSpeakerMode]
   );
 
   // Set up conversation engine handler
@@ -241,10 +347,25 @@ export function ChatContainer() {
 
       conversationEngine.onUserMessage();
 
+      // Check for speaker command via @mention
+      const speakerCmd = detectSpeakerCommand(content, speakerState.speakerId, activeModels);
+      if (speakerCmd) {
+        setSpeaker(speakerCmd.mentionedModel.id);
+        triggerSpeakerCommand(speakerCmd.command);
+      }
+
       const messageId = addMessage({
         role: "user",
         content,
       });
+
+      // Track user message count for memory extraction
+      userMessageCountRef.current += 1;
+
+      // Trigger memory extraction if enabled and at frequency
+      if (extractionEnabled && userMessageCountRef.current % extractionFrequency === 0) {
+        triggerMemoryExtraction();
+      }
 
       // Get the message we just added
       setTimeout(() => {
@@ -255,7 +376,7 @@ export function ChatContainer() {
         }
       }, 0);
     },
-    [addMessage, activeModels, processModelResponses]
+    [addMessage, activeModels, processModelResponses, speakerState.speakerId, setSpeaker, triggerSpeakerCommand, extractionEnabled, extractionFrequency, triggerMemoryExtraction]
   );
 
   return (
@@ -328,8 +449,17 @@ export function ChatContainer() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col bg-background">
+      <div className="flex-1 flex flex-col min-h-0 bg-background">
+        {/* Control Bar */}
+        <div className="flex items-center gap-2 p-2 border-b border-border bg-surface">
+          <SessionManager />
+          <SettingsPanel />
+          <MemoryPanel />
+          <SpeakerControls onTriggerMessage={handleSendMessage} />
+        </div>
+
         <MessageList onStopModel={handleStopModel} />
+        <WaveIndicator />
         <ChatInput
           onSend={handleSendMessage}
           onStop={handleStop}

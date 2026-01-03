@@ -17,6 +17,15 @@ A group chat application where multiple AI models can converse with you and each
 - **Streaming Responses**: See responses as they're generated token-by-token
 - **Typing Indicators**: Know when a model is thinking
 - **Stop Button**: Cancel all responses instantly, or stop individual models mid-stream
+- **Smart Scroll**: Auto-scroll pauses when you scroll up to read; "New messages" button appears
+
+### 2.0 Features
+
+- **Wave Throttling**: Models respond in waves (e.g., 2 at a time), allowing later waves to reference earlier responses
+- **Memory System**: Auto-building RAG that extracts and recalls discussion context (agreements, disagreements, positions, evidence)
+- **Speaker System**: Designate a model as "speaker" for summaries (`@Opus summarize`, `@GPT report`)
+- **Session Management**: Save, load, and manage multiple conversation sessions
+- **Setting Prompt**: Global context/scenario that applies to all models
 
 ## Available Models
 
@@ -118,11 +127,44 @@ This fork includes enhanced conversation dynamics for multi-model debates:
 3. Ask them to assign a summary author
 4. If stuck, type "continue" to reset the turn counter
 
+## Wave Throttling (2.0)
+
+When enabled, models respond in sequential waves rather than all at once:
+
+- **Wave Size**: Configure how many models respond per wave (default: 2)
+- **Wave Context**: Models in Wave 2+ can see and reference what earlier waves said
+- **Selection Modes**: Random, round-robin, or priority-based wave assignment
+- **Pass Option**: Models can `[PASS]` if they have nothing unique to add
+
+This creates more coherent debates where models build on each other's points.
+
+## Speaker System (2.0)
+
+Designate a model to provide summaries or reports:
+
+| Command | Description |
+|---------|-------------|
+| `@Model summarize` | Quick prose summary of the discussion |
+| `@Model report` | Structured report with sections |
+| `@Model consensus` | List areas of agreement |
+| `@Model conflicts` | List disagreements and positions |
+| `@Model questions` | List open/unresolved questions |
+
+## Memory System (2.0)
+
+Auto-building contextual memory for long discussions:
+
+- **Memory Categories**: Facts, positions, agreements, disagreements, evidence, conclusions, questions, context
+- **Scoring Algorithm**: Importance × 0.5 + Recency × 0.35 + Access Frequency × 0.15
+- **Auto-Pruning**: Keeps top N memories by score when limit is reached
+- **Model-Specific**: Memories can be global or specific to a model
+- **Extraction Model**: Uses DeepSeek Chat for cost-effective memory extraction
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 (App Router)
 - **Styling**: Tailwind CSS v4
-- **State**: Zustand
+- **State**: Zustand with persistence
 - **API**: OpenRouter (unified API for multiple LLM providers)
 - **Streaming**: Server-Sent Events (SSE)
 
@@ -131,7 +173,9 @@ This fork includes enhanced conversation dynamics for multi-model debates:
 ```
 src/
 ├── app/
-│   ├── api/chat/route.ts    # Streaming API endpoint
+│   ├── api/
+│   │   ├── chat/route.ts          # Streaming chat API
+│   │   └── extract-memories/route.ts  # Memory extraction API
 │   ├── globals.css          # Theme and animations
 │   ├── layout.tsx           # Root layout
 │   └── page.tsx             # Main page
@@ -139,21 +183,36 @@ src/
 │   ├── ChatContainer.tsx    # Main chat orchestrator
 │   ├── ChatInput.tsx        # Message input with stop button
 │   ├── MessageBubble.tsx    # Individual message display
-│   ├── MessageList.tsx      # Scrollable message container
+│   ├── MessageList.tsx      # Scrollable message container (smart scroll)
 │   ├── ModelSelector.tsx    # Model toggle + settings modal
 │   ├── PromptModePanel.tsx  # Prompt modes and role config
 │   ├── ActiveModels.tsx     # Shows active models
-│   └── TypingIndicator.tsx  # "X is thinking..." display
+│   ├── TypingIndicator.tsx  # "X is thinking..." display
+│   ├── SessionManager.tsx   # Session save/load/delete UI (2.0)
+│   ├── SettingsPanel.tsx    # Setting prompt + throttle config (2.0)
+│   ├── WaveIndicator.tsx    # Wave progress display (2.0)
+│   ├── MemoryPanel.tsx      # Memory browse/settings UI (2.0)
+│   └── SpeakerControls.tsx  # Speaker designation + commands (2.0)
 ├── lib/
-│   ├── conversationEngine.ts # Response logic, prompts, queuing
+│   ├── conversationEngine.ts # Response logic, prompts, queuing, wave integration
+│   ├── waveThrottle.ts      # Wave throttling system
+│   ├── speakerPrompt.ts     # Speaker/reporter system
+│   ├── memory/
+│   │   ├── scoring.ts       # Memory scoring algorithms
+│   │   └── formatter.ts     # Memory formatting for prompts
 │   ├── models.ts            # Model definitions
 │   ├── modelConfigs.ts      # Model personalities and roles
 │   ├── promptModes.ts       # Toggleable prompt modes
 │   └── streamHandler.ts     # API streaming utilities
 ├── store/
-│   └── chatStore.ts         # Zustand state management
+│   ├── chatStore.ts         # Zustand state (with persistence, sessions)
+│   └── memoryStore.ts       # Memory system state
 └── types/
-    └── chat.ts              # TypeScript interfaces
+    ├── chat.ts              # Core chat interfaces
+    ├── memory.ts            # Memory system types
+    ├── throttle.ts          # Wave throttling types
+    ├── speaker.ts           # Speaker system types
+    └── session.ts           # Session management types
 ```
 
 ## License

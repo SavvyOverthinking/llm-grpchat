@@ -1,5 +1,25 @@
 import { Model, Message, PromptMode, ModelConfig } from "@/types/chat";
 import { availableRoles } from "@/lib/modelConfigs";
+import { ThrottleSettings, WaveContext, WaveState, INITIAL_WAVE_STATE } from "@/types/throttle";
+import { SpeakerCommand, SpeakerState } from "@/types/speaker";
+import { Memory } from "@/types/memory";
+import {
+  buildResponseWaves,
+  buildWaveContextPrompt,
+  extractWaveContext,
+  initializeWaveState,
+  advanceToNextWave,
+  updateWaveStateAfterResponse,
+  isPassResponse,
+  getCurrentWaveModels,
+} from "./waveThrottle";
+import { formatMemoriesForModel } from "./memory/formatter";
+import {
+  buildSpeakerSystemPrompt,
+  detectSpeakerCommand,
+  isInSpeakerMode,
+  getSpeakerReminder,
+} from "./speakerPrompt";
 
 interface ResponseDecision {
   shouldRespond: boolean;
@@ -223,13 +243,30 @@ export class ConversationEngine {
   }
 }
 
+/**
+ * Build the complete system prompt for a model
+ * Extended to include: setting prompt, memory context, wave context, speaker mode
+ */
 export function buildSystemPrompt(
   model: Model,
   activeModels: Model[],
   messages: Message[] = [],
   promptModes: PromptMode[] = [],
-  modelConfigs: Record<string, ModelConfig> = {}
+  modelConfigs: Record<string, ModelConfig> = {},
+  options: {
+    settingPrompt?: string;
+    memories?: Memory[];
+    waveContext?: WaveContext[];
+    speakerMode?: SpeakerCommand | null;
+  } = {}
 ): string {
+  const {
+    settingPrompt = '',
+    memories = [],
+    waveContext = [],
+    speakerMode = null,
+  } = options;
+
   const otherModels = activeModels
     .filter((m) => m.id !== model.id)
     .map((m) => m.shortName);
@@ -300,6 +337,26 @@ DEAD ARGUMENT RULES:
 - Instead: (a) pivot to a genuinely new angle, (b) concede the point explicitly, or (c) attack from different ground
 - Repeating the same claim after refutation is not persistence - it's failure to engage
 - If someone says "you already made that point and X refuted it" - they're right. Move on.`;
+
+  // === NEW: Setting prompt (global context) ===
+  const settingPromptText = settingPrompt.trim()
+    ? `\n\nDISCUSSION SETTING:\n${settingPrompt}`
+    : '';
+
+  // === NEW: Memory context ===
+  const memoryContextText = memories.length > 0
+    ? '\n\n' + formatMemoriesForModel(memories, model.id, model.shortName || model.name)
+    : '';
+
+  // === NEW: Wave context for Wave 2+ models ===
+  const waveContextText = waveContext.length > 0
+    ? '\n\n' + buildWaveContextPrompt(waveContext)
+    : '';
+
+  // === NEW: Speaker mode ===
+  const speakerModeText = speakerMode
+    ? '\n\n' + buildSpeakerSystemPrompt(speakerMode, memories, activeModels)
+    : '';
 
   const basePrompt = `You are ${model.name}, participating in a group discussion with a human and other AI models.
 
@@ -396,7 +453,19 @@ Response rules:
 - Don't repeat points already made
 - If ${msgsSinceUser} >= 10 and you weren't mentioned, let the human speak`;
 
-  return basePrompt + modesText + personalityText + roleText + customInstructionsText + grokReinforcement + nemotronReinforcement + antiModeratorRules + deadArgumentRules;
+  return basePrompt +
+    settingPromptText +
+    modesText +
+    personalityText +
+    roleText +
+    customInstructionsText +
+    memoryContextText +
+    waveContextText +
+    speakerModeText +
+    grokReinforcement +
+    nemotronReinforcement +
+    antiModeratorRules +
+    deadArgumentRules;
 }
 
 export function buildContextWindow(
@@ -414,5 +483,135 @@ export function buildContextWindow(
         : msg.content,
   }));
 }
+
+// === NEW: Wave Throttling Integration ===
+
+/**
+ * Prepare messages for API call with proper context
+ * Handles the sliding window and formats messages appropriately
+ */
+export function prepareMessagesForModel(
+  allMessages: Message[],
+  contextWindowSize: number,
+  systemPrompt: string
+): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+  // Get recent messages within context window
+  const recentMessages = allMessages.slice(-contextWindowSize);
+
+  // Build message array for API
+  const apiMessages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
+    { role: 'system', content: systemPrompt },
+  ];
+
+  for (const msg of recentMessages) {
+    apiMessages.push({
+      role: msg.role,
+      content: msg.role === 'assistant'
+        ? `[${msg.modelName || 'Assistant'}]: ${msg.content}`
+        : msg.content,
+    });
+  }
+
+  return apiMessages;
+}
+
+/**
+ * Get models that should respond to a message
+ * Respects wave throttling if enabled
+ */
+export function getRespondingModels(
+  activeModels: Model[],
+  throttleSettings: ThrottleSettings,
+  currentWave: number = 1
+): Model[] {
+  if (!throttleSettings.enabled) {
+    return activeModels;
+  }
+
+  const waves = buildResponseWaves(activeModels, throttleSettings);
+  const wave = waves[currentWave - 1];
+
+  if (!wave) return [];
+
+  return wave.respondingModels
+    .map(id => activeModels.find(m => m.id === id))
+    .filter((m): m is Model => m !== undefined);
+}
+
+/**
+ * Check if we should trigger memory extraction
+ * Based on turn count and extraction frequency
+ */
+export function shouldTriggerMemoryExtraction(
+  currentTurn: number,
+  lastExtractionTurn: number,
+  extractionFrequency: number,
+  extractionEnabled: boolean
+): boolean {
+  if (!extractionEnabled) {
+    return false;
+  }
+
+  return currentTurn - lastExtractionTurn >= extractionFrequency;
+}
+
+/**
+ * Get messages that need memory extraction
+ */
+export function getMessagesForExtraction(
+  messages: Message[],
+  pendingExtractionMessageIds: string[],
+  lastExtractionTurn: number
+): Message[] {
+  if (pendingExtractionMessageIds.length > 0) {
+    return messages.filter(m => pendingExtractionMessageIds.includes(m.id));
+  }
+
+  // Get messages since last extraction
+  const userMessages = messages.filter(m => m.role === 'user');
+  const startIdx = Math.max(0, lastExtractionTurn);
+
+  // Get messages from startIdx turn to now (rough estimate: 2 messages per turn)
+  return messages.slice(startIdx * 2);
+}
+
+/**
+ * Check for speaker command in user message
+ */
+export function checkForSpeakerCommand(
+  userMessage: string,
+  speakerState: SpeakerState,
+  activeModels: Model[]
+): { command: SpeakerCommand; mentionedModel: Model } | null {
+  return detectSpeakerCommand(userMessage, speakerState.speakerId, activeModels);
+}
+
+/**
+ * Check if a model is currently designated as speaker
+ */
+export function isModelInSpeakerMode(
+  modelId: string,
+  speakerState: SpeakerState
+): boolean {
+  return isInSpeakerMode(modelId, speakerState);
+}
+
+/**
+ * Get speaker reminder text for appending to user message
+ */
+export function getModelSpeakerReminder(speakerMode: SpeakerCommand): string {
+  return getSpeakerReminder(speakerMode);
+}
+
+// === Wave State Management Exports ===
+export {
+  buildResponseWaves,
+  initializeWaveState,
+  advanceToNextWave,
+  updateWaveStateAfterResponse,
+  isPassResponse,
+  getCurrentWaveModels,
+  extractWaveContext,
+};
 
 export const conversationEngine = new ConversationEngine();

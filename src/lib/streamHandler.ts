@@ -1,7 +1,24 @@
+import { Model } from '@/types/chat';
+import { Memory } from '@/types/memory';
+import { WaveContext } from '@/types/throttle';
+import { SpeakerCommand } from '@/types/speaker';
+
 interface StreamCallbacks {
   onToken: (token: string) => void;
   onComplete: () => void;
   onError: (error: Error) => void;
+}
+
+// Extended options for 2.0 features
+interface StreamOptions {
+  settingPrompt?: string;
+  memories?: Memory[];
+  waveContext?: WaveContext[];
+  speakerMode?: SpeakerCommand | null;
+  activeModels?: Model[];
+  contextWindowSize?: number;
+  promptModes?: unknown[];
+  modelConfigs?: Record<string, unknown>;
 }
 
 // Track active abort controllers for cancellation
@@ -27,26 +44,63 @@ export function hasActiveStreams(): boolean {
 }
 
 export async function streamModelResponse(
-  modelId: string,
+  model: Model | string,
   messages: { role: string; content: string }[],
-  callbacks: StreamCallbacks
+  callbacks: StreamCallbacks,
+  options: StreamOptions = {}
 ): Promise<void> {
   const { onToken, onComplete, onError } = callbacks;
+  const modelId = typeof model === 'string' ? model : model.id;
 
   // Create abort controller for this request
   const controller = new AbortController();
   activeControllers.set(modelId, controller);
 
   try {
+    // Build request body with 2.0 features
+    const requestBody: Record<string, unknown> = {
+      model: model,
+      messages,
+      activeModels: options.activeModels || [],
+      contextWindowSize: options.contextWindowSize || 20,
+      promptModes: options.promptModes || [],
+      modelConfigs: options.modelConfigs || {},
+    };
+
+    // Add 2.0 optional params if provided
+    if (options.settingPrompt) {
+      requestBody.settingPrompt = options.settingPrompt;
+    }
+    if (options.memories && options.memories.length > 0) {
+      requestBody.memories = options.memories;
+    }
+    if (options.waveContext && options.waveContext.length > 0) {
+      requestBody.waveContext = options.waveContext;
+    }
+    if (options.speakerMode) {
+      requestBody.speakerMode = options.speakerMode;
+    }
+
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: modelId, messages }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      // Try to get error details from response body
+      let errorMessage = `API error: ${response.status}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody.error) {
+          errorMessage = `${errorBody.error} (${response.status})`;
+        }
+      } catch {
+        // Ignore JSON parse errors
+      }
+      onError(new Error(errorMessage));
+      return;
     }
 
     const reader = response.body?.getReader();

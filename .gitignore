@@ -39,3 +39,7 @@ coverage/
 
 # Misc
 *.pem
+
+# Claude internal planning docs (not part of the app)
+LLMGRPCHT2-Claude-Continuity.md
+CLAUDE_CODE_TASK_*.md
